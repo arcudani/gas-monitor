@@ -1,0 +1,2 @@
+# Streamlit Community Cloud installa da qui (radice repo): delega ad app/.
+-r app/requirements.txt

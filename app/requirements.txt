@@ -1,0 +1,10 @@
+# Dipendenze Gas Market Monitor (versioni minime che coprono le API usate)
+streamlit>=1.45                 # st.navigation/st.Page, st.logo, width="stretch"
+pandas>=2.2
+python-dotenv>=1.0.1            # .env locale
+psycopg[binary,pool]>=3.2       # Postgres (gas_utenti + serie di mercato)
+streamlit-authenticator>=0.4    # login UI + cookie sessione
+bcrypt>=4.1                     # hash password
+altair>=5.3                     # grafici dashboard
+openpyxl>=3.1                   # export Excel (RF-05)
+reportlab>=4.0                  # export PDF (RF-05)

@@ -1,0 +1,17 @@
+# Configurazione Streamlit (tema brandizzato Bros + deploy)
+# Letto da Streamlit Community Cloud (radice repo) e in locale.
+
+[theme]
+primaryColor = "#C00000"        # rosso Bros
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F2F2F2"
+textColor = "#404040"           # grigio Bros
+font = "sans serif"             # Arial-like
+
+[server]
+headless = true
+enableXsrfProtection = true
+enableCORS = false
+
+[browser]
+gatherUsageStats = false

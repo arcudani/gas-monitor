@@ -1,0 +1,19 @@
+# Segreti e ambienti locali
+app/.env
+.env
+app/.venv/
+.venv/
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Log e dati locali (GDPR: niente dati cliente nel repo)
+app/_logs/
+_logs/
+*.xlsx
+*.xls
+*.pdf
+*.zip
