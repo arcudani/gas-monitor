@@ -171,7 +171,7 @@ st.markdown(
     f"<div class='gm-tag'>vs trend · <b style='color:{BLU_SCURO if pz_ok else '#64748b'}'>{'in flessione' if pz_ok else 'non in flessione'}</b></div>"
     "</div>"
     f"<div class='gm-sub'>{branding.gm_delta(d_pz, 2, '€/MWh')} vs ieri · dato del {ult['Data'].strftime('%d/%m/%Y')}</div>"
-    "<div class='gm-mini'>"
+    "<div class='gm-mini gm-mini-ink'>"
     f"<div>vs breve {gg_b} gg<b>{_pct(ult['ScB'])}</b></div>"
     f"<div>vs medio {gg_m} gg<b>{_pct(ult['ScM'])}</b></div>"
     f"<div>lungo {gg_l} gg<b>{dir_l}</b></div>"

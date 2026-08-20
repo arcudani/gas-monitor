@@ -300,6 +300,11 @@ BROS_CSS = """
     .gm-mini b { display:block; font-size:1.6rem; line-height:1.1; color:var(--gas-blue); font-weight:800;
                  font-variant-numeric:tabular-nums; margin-top:3px; letter-spacing:-.01em; }
     .gm-mini .gm-bar { margin-top:7px; height:6px; }
+    /* Variante "ink" (richiesta 20/08, mini-griglia del pannello Prezzo):
+       numeri in NERO e piu' piccoli dei valori principali, testo mai troncato
+       ("in salita" si deve leggere per intero). */
+    .gm-mini.gm-mini-ink > div { overflow:visible; text-overflow:clip; }
+    .gm-mini.gm-mini-ink b { color:var(--slate-900); font-size:1.15rem; font-weight:700; }
     /* segnale */
     .gm-signal { background:#fff; border:1px solid var(--slate-200); border-left:6px solid var(--sig-color, var(--gas-blue));
                  border-radius:var(--radius); padding:16px 22px 18px; box-shadow:var(--shadow-soft); margin-top:16px; }
