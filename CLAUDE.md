@@ -10,9 +10,12 @@ annuali. Tutto in italiano (UI, commenti, testi). Requisiti e storia delle decis
 `G:\Il mio Drive\Code\App_Offerte\REQUISITI_Gas_Market_Monitor.md` (v1.8) — leggere la sezione
 "Indice sintetico → Scenario + Prezzo + Segnale" prima di toccare il motore.
 
-Stato: MVP **funzionalmente completo e tarato**; **non ancora su GitHub né deployato** (nessun
-`git init`). Quando si pubblica: repo privato `arcudani/gas-monitor`, Streamlit Community Cloud,
-URL in `GAS_MONITOR_APP_URL` (secrets ERP + Edge Function alert). Mai push senza ok esplicito.
+Stato: **in produzione** (20/08/2026). Repo **pubblico** `arcudani/gas-monitor` (pubblico perché
+Community Cloud consente una sola app da repo privato, già usata da bros-erp — quindi MAI
+committare segreti o dati cliente); app live su
+`https://gas-monitor-gtspes3q3h5ry5wp3dj9rn.streamlit.app` (secrets su SCC: SUPABASE_DB_URL,
+AUTH_COOKIE_KEY). **`git push` su `main` rideploya l'app** — mai push senza ok esplicito.
+L'URL è cablato come fallback di `GAS_MONITOR_APP_URL` nella config ERP e nella Edge Function alert.
 
 ## Comandi (dalla cartella `app/`, con il python della venv)
 

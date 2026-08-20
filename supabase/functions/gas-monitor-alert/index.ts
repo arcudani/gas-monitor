@@ -20,7 +20,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
-const APP_URL = Deno.env.get("GAS_MONITOR_APP_URL") ?? "";
+const APP_URL = Deno.env.get("GAS_MONITOR_APP_URL") ??
+  "https://gas-monitor-gtspes3q3h5ry5wp3dj9rn.streamlit.app";
 
 const SENDER = { name: "Bros Consulenza", email: "energia@brosconsulenza.com" };
 const RED = "#C00000";
