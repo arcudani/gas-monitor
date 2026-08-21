@@ -101,9 +101,12 @@ def require_login() -> str:
     # Nome canonico dal DB (streamlit-authenticator abbassa a minuscolo).
     raw = (st.session_state.get("name") or st.session_state.get("username") or "").strip()
     utente = _canonical_username(raw) or raw
-    with st.sidebar:
+    # key="gm_logout": il CSS in branding.py ancora questo blocco IN FONDO alla
+    # sidebar (il selettore commodity sta in cima, il menu pagine in mezzo).
+    # location="main" = nel container corrente (siamo gia' dentro la sidebar).
+    with st.sidebar, st.container(key="gm_logout"):
         st.caption(f"👤 Utente: **{st.session_state.get('name', utente)}**")
-        authenticator.logout("Esci", location="sidebar")
+        authenticator.logout("Esci", location="main")
     return utente
 
 

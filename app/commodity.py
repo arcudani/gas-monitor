@@ -83,8 +83,12 @@ def selettore() -> str:
     nomi = {c["commodity"]: f"{c['icona']} {c['nome']}" for c in opzioni}
     if CHIAVE_STATO not in st.session_state:
         st.session_state[CHIAVE_STATO] = DEFAULT
-    st.segmented_control("Commodity", options=list(nomi), format_func=lambda k: nomi[k],
-                         key=CHIAVE_STATO, label_visibility="collapsed")
+    # key="gm_commodity": il CSS in branding.py porta questo container IN CIMA alla
+    # sidebar, sopra il menu delle pagine (richiesta 21/08/2026).
+    with st.container(key="gm_commodity"):
+        st.markdown("<div class='gm-com-label'>Commodity</div>", unsafe_allow_html=True)
+        st.segmented_control("Commodity", options=list(nomi), format_func=lambda k: nomi[k],
+                             key=CHIAVE_STATO, label_visibility="collapsed")
     return corrente()
 
 

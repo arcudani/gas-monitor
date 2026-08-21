@@ -87,6 +87,22 @@ BROS_CSS = """
     [data-testid="stSidebarNav"] a[aria-current="page"] span { color: var(--bros-red) !important; font-weight: 600 !important; }
     [data-testid="stSidebarNav"] header { font-weight: 700; letter-spacing: .04em; color: var(--slate-500); }
 
+    /* === Ordine della sidebar (richiesta 21/08/2026): selettore commodity SOPRA il menu,
+       "Esci" ancorato in fondo. Streamlit 1.61: stSidebarContent > [Header, Nav, UserContent >
+       div > stVerticalBlock > stLayoutWrapper per ogni container con key]. I livelli intermedi
+       si appiattiscono (display:contents) e i wrapper si ordinano insieme al menu. Verificato
+       su pagina di prova il 21/08/2026 (i testid cambiano tra versioni: ricontrollare dopo upgrade). */
+    [data-testid="stSidebarContent"] { display: flex; flex-direction: column; min-height: 100%; }
+    [data-testid="stSidebarUserContent"],
+    [data-testid="stSidebarUserContent"] > div,
+    [data-testid="stSidebarUserContent"] > div > [data-testid="stVerticalBlock"] { display: contents; }
+    [data-testid="stSidebarHeader"] { order: 0; }
+    [data-testid="stSidebarUserContent"] [data-testid="stLayoutWrapper"]:has(> .st-key-gm_commodity) { order: 1; padding: 2px 18px 0; }
+    [data-testid="stSidebarNav"] { order: 2; }
+    [data-testid="stSidebarUserContent"] [data-testid="stLayoutWrapper"]:has(> .st-key-gm_logout) {
+        order: 9; margin-top: auto; padding: 10px 18px 14px; border-top: 1px solid var(--slate-200); }
+    .gm-com-label { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--slate-500); margin: 2px 0 6px; }
+
     /* === Bottoni === */
     .stButton > button[kind="primary"],
     .stLinkButton > a[kind="primary"] {
