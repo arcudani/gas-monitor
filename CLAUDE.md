@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Cos'è
 
-**Gas Market Monitor** — terza app Streamlit di Bros Consulenza (dopo `C:\Code\App_Offerte` e
+**Energy Market Monitor** (nome unico dal 21/08/2026; ex "Gas Market Monitor", identificatori tecnici `gas_*`/`gas-monitor` invariati) — terza app Streamlit di Bros Consulenza (dopo `C:\Code\App_Offerte` e
 `C:\Code\Bros_ERP`): individua le **finestre favorevoli al fixing del gas** per clienti con contratti
 annuali. Tutto in italiano (UI, commenti, testi). Requisiti e storia delle decisioni:
 `G:\Il mio Drive\Code\App_Offerte\REQUISITI_Gas_Market_Monitor.md` (v1.8) — leggere la sezione
