@@ -102,6 +102,11 @@ BROS_CSS = """
     [data-testid="stSidebarUserContent"] [data-testid="stLayoutWrapper"]:has(> .st-key-gm_logout) {
         order: 9; margin-top: auto; padding: 10px 18px 14px; border-top: 1px solid var(--slate-200); }
     .gm-com-label { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--slate-500); margin: 2px 0 6px; }
+    /* selettore: una sola riga, bottoni a tutta larghezza, nessun ritaglio del bordo selezionato */
+    .st-key-gm_commodity [data-testid="stSegmentedControl"],
+    .st-key-gm_commodity [data-testid="stSegmentedControl"] > div { overflow: visible !important; width: 100%; }
+    .st-key-gm_commodity [data-testid="stSegmentedControl"] > div { display: flex; flex-wrap: nowrap; padding: 1px; }
+    .st-key-gm_commodity [data-testid="stSegmentedControl"] button { flex: 1 1 0; justify-content: center; min-width: 0; }
 
     /* === Bottoni === */
     .stButton > button[kind="primary"],

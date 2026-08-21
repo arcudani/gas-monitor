@@ -80,7 +80,10 @@ def selettore() -> str:
     opzioni = lista()
     if len(opzioni) < 2:
         return corrente()
-    nomi = {c["commodity"]: f"{c['icona']} {c['nome']}" for c in opzioni}
+    # etichette corte SOLO qui (la sidebar e' stretta: "Energia elettrica" andava a capo
+    # e il bordo del bottone selezionato veniva tagliato, visto il 21/08/2026)
+    BREVE = {"ee": "Elettrico"}
+    nomi = {c["commodity"]: f"{c['icona']} {BREVE.get(c['commodity'], c['nome'])}" for c in opzioni}
     if CHIAVE_STATO not in st.session_state:
         st.session_state[CHIAVE_STATO] = DEFAULT
     # key="gm_commodity": il CSS in branding.py porta questo container IN CIMA alla
