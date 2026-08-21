@@ -1,5 +1,5 @@
 """
-Autenticazione Gas Market Monitor — streamlit-authenticator + bcrypt.
+Autenticazione Energy Market Monitor — streamlit-authenticator + bcrypt.
 
 ⚠️ DIVERSAMENTE da ERP e web app Offerte, le credenziali NON stanno in
 public.utenti ma nella tabella DEDICATA public.gas_utenti (decisione

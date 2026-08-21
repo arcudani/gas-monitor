@@ -27,7 +27,7 @@ def test_anagrafica() -> None:
     # il meteo EE legge la stessa serie del gas ma con trasformazione abs_delta
     met = next(v for v in v_ee if v["variabile"] == "meteo")
     assert met["commodity_dati"] == "gas" and met["trasformazione"] == "abs_delta"
-    assert commodity.titolo("gas") == "Gas Market Monitor"
+    assert commodity.titolo("gas") == "Energy Market Monitor · Gas"
     print("OK - anagrafica commodity (2 commodity, 4 + 5 variabili)")
 
 

@@ -171,7 +171,7 @@ type Scattato = {
 };
 
 function titolo(c: Commodity): string {
-  return c.commodity === "gas" ? "Gas Market Monitor" : `Market Monitor — ${c.nome}`;
+  return `Energy Market Monitor · ${c.nome}`;   // nome unico deciso il 21/08/2026
 }
 
 function htmlEmail(c: Commodity, G: Record<string, Grandezza>, username: string,

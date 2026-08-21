@@ -16,6 +16,7 @@ import streamlit as st
 import db
 
 DEFAULT = "gas"
+NOME_PRODOTTO = "Energy Market Monitor"   # nome unico per gas ed energia elettrica (21/08/2026)
 CHIAVE_STATO = "commodity"
 
 
@@ -59,9 +60,8 @@ def variabili(code: str) -> list[dict]:
 
 
 def titolo(code: str | None = None) -> str:
-    """Nome prodotto per intestazioni/export: il gas mantiene il marchio storico."""
-    i = info(code)
-    return "Gas Market Monitor" if i["commodity"] == "gas" else f"Market Monitor — {i['nome']}"
+    """Nome prodotto unico (deciso 21/08/2026) + commodity: 'Energy Market Monitor · Gas'."""
+    return f"{NOME_PRODOTTO} · {info(code)['nome']}"
 
 
 # =============================================================================

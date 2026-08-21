@@ -1,11 +1,11 @@
-# Email di benvenuto — standard per ogni nuova utenza Gas Market Monitor
+# Email di benvenuto — standard per ogni nuova utenza Energy Market Monitor
 
 Template deciso il 20/08/2026: usare QUESTO testo per ogni nuovo utente
 (bozza Gmail dal mittente personale di Daniele, non dalle email di sistema).
 Segnaposto: `{NOME}`, `{USERNAME}`. La password NON va mai nell'email:
 viene comunicata separatamente da Daniele.
 
-- Oggetto: **Gas Market Monitor — accesso al portale**
+- Oggetto: **Energy Market Monitor — accesso al portale**
 - **Cc: SEMPRE energia@brosconsulenza.com** (regola di Daniele, 20/08/2026)
 - Link: https://gas-monitor-gtspes3q3h5ry5wp3dj9rn.streamlit.app
 - Il paragrafo "profilo amministratore" si usa SOLO per ruolo `admin`;
@@ -15,8 +15,8 @@ viene comunicata separatamente da Daniele.
 
 Ciao {NOME},
 
-è online il **Gas Market Monitor**, il nuovo portale Bros dedicato alle
-coperture gas. Ti dà tre informazioni, aggiornate ogni mattina:
+è online l'**Energy Market Monitor**, il nuovo portale Bros dedicato alle
+coperture gas ed energia elettrica. Ti dà tre informazioni, aggiornate ogni mattina:
 
 - **Scenario di approvvigionamento** (0–100): quanto i fondamentali —
   stoccaggi, LNG, meteo, contesto geopolitico — sono dalla parte di chi compra;
@@ -29,7 +29,7 @@ PDF/Excel e gli **alert email personali**: dalla sezione *Alert* puoi inserire
 il tuo indirizzo e impostare le soglie che preferisci (ad es. "avvisami quando
 scatta un segnale di fixing").
 
-Apri il Gas Market Monitor → https://gas-monitor-gtspes3q3h5ry5wp3dj9rn.streamlit.app
+Apri l'Energy Market Monitor → https://gas-monitor-gtspes3q3h5ry5wp3dj9rn.streamlit.app
 
 **Accesso**: utente **{USERNAME}** — la password te la invio io separatamente.
 

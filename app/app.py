@@ -1,5 +1,5 @@
 """
-Bros Consulenza — Gas Market Monitor — shell modulare.
+Bros Consulenza — Energy Market Monitor — shell modulare.
 
 Avvio locale (da dentro app\\):  python -m streamlit run app.py
 
@@ -24,8 +24,8 @@ import branding
 import registro_moduli
 
 st.set_page_config(
-    page_title="Bros Consulenza — Gas Market Monitor",
-    page_icon="🔥",
+    page_title="Bros Consulenza — Energy Market Monitor",
+    page_icon="⚡",
     layout="wide",
 )
 

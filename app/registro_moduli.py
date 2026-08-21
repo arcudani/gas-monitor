@@ -1,5 +1,5 @@
 """
-Registro dei moduli Gas Market Monitor — aggiungere un modulo = 1 file in
+Registro dei moduli Energy Market Monitor — aggiungere un modulo = 1 file in
 moduli\\ + 1 riga qui (stesso pattern del registro Bros ERP).
 
 Ogni modulo è uno script-pagina Streamlit (file-based st.Page): codice

@@ -1,5 +1,5 @@
 """
-Configurazione Gas Market Monitor — UNICA fonte dei segreti (getter da env).
+Configurazione Energy Market Monitor — UNICA fonte dei segreti (getter da env).
 
 In locale i valori vengono da app\\.env (python-dotenv, caricato all'import).
 Su Streamlit Community Cloud arrivano da st.secrets: bridge_streamlit_secrets()

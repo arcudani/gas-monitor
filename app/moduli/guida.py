@@ -8,7 +8,7 @@ from __future__ import annotations
 import streamlit as st
 
 st.title("📖 Guida")
-st.caption("Come leggere il Gas Market Monitor e come configurarlo.")
+st.caption("Come leggere l'Energy Market Monitor e come configurarlo.")
 
 tab_cosa, tab_dash, tab_alert, tab_admin, tab_fonti, tab_faq = st.tabs([
     "🎯 Cos'è", "📊 Leggere la dashboard", "🔔 Alert", "⚙️ Parametri (admin)", "🗂 Fonti e limiti",
@@ -18,7 +18,7 @@ tab_cosa, tab_dash, tab_alert, tab_admin, tab_fonti, tab_faq = st.tabs([
 with tab_cosa:
     st.markdown("""
 ### A cosa serve
-Il **Gas Market Monitor** aiuta a individuare le **finestre favorevoli per fissare il prezzo del gas**
+L'**Energy Market Monitor** aiuta a individuare le **finestre favorevoli per fissare il prezzo del gas e dell'energia elettrica**
 (fixing su contratti annuali, tranche di approvvigionamento). Ogni mattina alle 06:30 aggiorna i dati,
 ricalcola il segnale e, se hai impostato soglie, ti manda un'email.
 
@@ -190,7 +190,7 @@ Ultimo giorno disponibile per ogni serie, esecuzioni della pipeline (orario, esi
 sorgenti. Se una serie è ferma da più giorni, è lì che si vede.
 
 ### Utenti
-Gli utenti del Gas Market Monitor hanno credenziali **proprie** (non quelle dell'ERP). Ruoli: *admin*
+Gli utenti dell'Energy Market Monitor hanno credenziali **proprie** (non quelle dell'ERP). Ruoli: *admin*
 (tutto) e *cliente* (dashboard, dettaglio, alert, export — non i parametri). La creazione utenti e le password
 si gestiscono dallo script `imposta_pwd.py` nel repo dell'app.
 """)

@@ -1,4 +1,4 @@
-// Edge Function `gas-monitor` — pipeline giornaliera del Gas Market Monitor.
+// Edge Function `gas-monitor` — pipeline giornaliera dell'Energy Market Monitor (gas + energia elettrica).
 //
 // Raccoglie le variabili (RF-06) e ricalcola l'indice sintetico 0-100:
 //  - METEO: Open-Meteo, T media giornaliera del paniere citta' IT pesate per
@@ -189,7 +189,7 @@ async function alertInterno(problemi: string[], dettagli: Record<string, number>
   try {
     const esc = (x: unknown) => String(x ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
     const html = `<div style="font-family:Inter,Arial,sans-serif;max-width:640px;color:#0f172a">
-      <h2 style="color:#C00000;border-bottom:3px solid #C00000;padding-bottom:8px">Gas Market Monitor — aggiornamento dati con problemi</h2>
+      <h2 style="color:#C00000;border-bottom:3px solid #C00000;padding-bottom:8px">Energy Market Monitor — aggiornamento dati con problemi</h2>
       <p>Il controllo giornaliero ha rilevato:</p>
       <ul>${problemi.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>
       <p style="font-size:13px;color:#475569">Righe aggiornate: ${esc(JSON.stringify(dettagli))}</p>
@@ -201,7 +201,7 @@ async function alertInterno(problemi: string[], dettagli: Record<string, number>
       body: JSON.stringify({
         sender: { name: "Bros Consulenza", email: "energia@brosconsulenza.com" },
         to: [{ email: "energia@brosconsulenza.com" }],
-        subject: "[ALERT] Gas Market Monitor — dati non aggiornati o errore pipeline",
+        subject: "[ALERT] Energy Market Monitor — dati non aggiornati o errore pipeline",
         htmlContent: html,
       }),
     });

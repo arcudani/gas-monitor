@@ -239,7 +239,7 @@ BROS_CSS = """
     div[class*="st-key-panel_"] { background: #fff !important; border: 1px solid var(--slate-200) !important; border-radius: 14px !important; padding: 14px 16px 10px !important; box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 6px 18px rgba(15,23,42,.06) !important; margin-bottom: 6px; }
 
     /* =====================================================================
-       Gas Market Monitor — componenti di lettura rapida (design 19/08/2026)
+       Energy Market Monitor — componenti di lettura rapida (design 19/08/2026)
        Principi: etichetta FUORI dal box (maiuscoletto grigio), numero che
        domina, una sola riga di contesto, colore solo sul dato (testo in
        inchiostro neutro), marks sottili. Scala del blu = intensita'.
@@ -441,18 +441,22 @@ def _logo_b64() -> str:
 
 
 def render_login_hero() -> None:
-    """Pre-login: logo grande centrato + titolo. Il form (card) lo rende auth."""
+    """Pre-login: logo compatto centrato + titolo. Il form (card) lo rende auth.
+    Compatto apposta (richiesta 21/08/2026): il form di login deve stare nella
+    prima schermata senza scroll, anche su un portatile."""
     b64 = _logo_b64()
     logo_html = (
         f"<img src='data:image/png;base64,{b64}' alt='Bros Consulenza' "
-        f"style='width:min(210px, 55vw); height:auto; display:block; margin: 2vh auto 0;'/>"
+        f"style='width:min(120px, 32vw); height:auto; display:block; margin: 0 auto;'/>"
     ) if b64 else ""
     st.markdown(
+        "<style>.block-container{padding-top:.8rem !important}"
+        "[data-testid='stForm']{margin-top:.2rem !important; padding-top:1.1rem !important}</style>"
         f"{logo_html}"
-        "<div style='text-align:center; margin-top:10px;'>"
-        "<div style='font-size:1.85rem; font-weight:800; color:#C00000; line-height:1.1; letter-spacing:-.02em;'>"
+        "<div style='text-align:center; margin-top:4px;'>"
+        "<div style='font-size:1.5rem; font-weight:800; color:#C00000; line-height:1.1; letter-spacing:-.02em;'>"
         "Bros Consulenza</div>"
-        "<div style='font-size:1rem; color:#64748b; margin-top:4px;'>Gas Market Monitor</div>"
+        "<div style='font-size:.95rem; color:#64748b; margin-top:2px;'>Energy Market Monitor</div>"
         "</div>",
         unsafe_allow_html=True,
     )
@@ -470,7 +474,7 @@ def kpi_card(label: str, value: str, sub: str = "",
             f"<div class='bros-kpi-sub'>{sub}</div></div></div>")
 
 
-def render_header(sottotitolo: str = "Gas Market Monitor") -> None:
+def render_header(sottotitolo: str = "Energy Market Monitor") -> None:
     """Post-login: riga brand compatta (il logo è già in st.logo)."""
     st.markdown(
         "<div style='display: flex; align-items: baseline; gap: 14px; "
@@ -485,7 +489,7 @@ def render_header(sottotitolo: str = "Gas Market Monitor") -> None:
 
 
 # =============================================================================
-# Componenti Gas Market Monitor (HTML) — design 19/08/2026
+# Componenti Energy Market Monitor (HTML) — design 19/08/2026
 # =============================================================================
 
 def gm_tile(label: str, value: str, unit: str = "", sub: str = "",

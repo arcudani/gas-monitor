@@ -49,7 +49,7 @@ def _it(v, dec: int = 2) -> str:
 # variabili dello scenario e fonti. Default = gas storico, cosi' le chiamate
 # esistenti (e i test offline) restano valide.
 CTX_GAS = {
-    "titolo": "Gas Market Monitor", "prezzo_label": "MGP-GAS", "prezzo_udm": "€/MWh",
+    "titolo": "Energy Market Monitor · Gas", "prezzo_label": "MGP-GAS", "prezzo_udm": "€/MWh",
     "prezzo_nome": "PREZZO GAS MGP-GAS",
     "variabili": [("stoccaggi", "Stoccaggi"), ("meteo", "Meteo"), ("lng", "LNG"), ("geopolitica", "Geo")],
     "fonti": ["Prezzo: GME — MGP-GAS (mercato del giorno prima gas), €/MWh",
@@ -65,7 +65,7 @@ def contesto(info: dict, variabili: list[dict]) -> dict:
     if info.get("commodity", "gas") == "gas" and not variabili:
         return CTX_GAS
     nome = info["nome"]
-    titolo = "Gas Market Monitor" if info["commodity"] == "gas" else f"Market Monitor — {nome}"
+    titolo = f"Energy Market Monitor · {nome}"
     return {
         "titolo": titolo, "prezzo_label": info["prezzo_label"], "prezzo_udm": info["prezzo_udm"],
         "prezzo_nome": f"PREZZO {nome.upper()} {info['prezzo_label']}",
