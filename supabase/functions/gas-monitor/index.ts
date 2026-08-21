@@ -328,6 +328,20 @@ Deno.serve(async (req: Request) => {
     }
     dettagli.indice = await ricalcola(dal, ieri);
 
+    // Energia elettrica (g008, 21/08/2026): stesso motore, commodity 'ee'
+    // (prezzo PUN + variabili condivise meteo/GPR/gas; produzione e rinnovabili
+    // da ENTSO-E quando la chiave sara' disponibile). Best-effort: un problema
+    // sull'EE non blocca il gas, ma viene segnalato.
+    try {
+      const r = await sb("/rest/v1/rpc/gas_ricalcola_segnale", {
+        method: "POST",
+        body: JSON.stringify({ p_commodity: "ee", p_dal: isoAddDays(dal, -180), p_al: ieri }),
+      });
+      dettagli.segnale_ee = Number(await r.text());
+    } catch (e) {
+      problemi.push(`ee: ${(e as Error).message}`.slice(0, 200));
+    }
+
     // Alert soglie utenti (RF-04): funzione dedicata, DOPO il ricalcolo.
     // Best-effort: un problema negli alert non deve far fallire il run
     // dati (ma viene segnalato).
@@ -358,6 +372,17 @@ Deno.serve(async (req: Request) => {
       for (const x of righe) {
         const tol = TOLLERANZA[x.serie] ?? 3;
         if (Number(x.giorni_fa) > tol) stantii.push(`${x.serie}: ultimo dato ${x.ultimo} (${x.giorni_fa} gg fa, tolleranza ${tol})`);
+      }
+      // EE: la funzione generica porta la tolleranza dall'anagrafica (gas_variabili);
+      // le serie condivise col gas (meteo, GPR) non vengono ripetute.
+      const r2 = await sb("/rest/v1/rpc/gas_freschezza", {
+        method: "POST", body: JSON.stringify({ p_commodity: "ee" }),
+      });
+      const righe2 = (await r2.json()) as { serie: string; ultimo: string; giorni_fa: number; tolleranza: number }[];
+      for (const x of righe2) {
+        if (x.serie.startsWith("meteo") || x.serie.startsWith("geopolitica")) continue;
+        const tol = Number(x.tolleranza ?? 3);
+        if (Number(x.giorni_fa) > tol) stantii.push(`EE ${x.serie}: ultimo dato ${x.ultimo} (${x.giorni_fa} gg fa, tolleranza ${tol})`);
       }
     } catch (e) {
       problemi.push(`freschezza: ${(e as Error).message}`.slice(0, 200));

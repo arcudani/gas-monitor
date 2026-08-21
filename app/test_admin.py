@@ -16,7 +16,7 @@ from streamlit.testing.v1 import AppTest
 
 
 def test_admin_parametri() -> None:
-    n_doc = db.query("SELECT count(*) FROM public.gas_parametri_doc")[0][0]
+    n_doc = db.query("SELECT count(*) FROM public.gas_parametri_doc WHERE commodity='gas'")[0][0]
     at = AppTest.from_file("moduli/admin.py", default_timeout=60)
     at.session_state["utente_autenticato"] = "Daniele"
     at.run()

@@ -1,20 +1,25 @@
 """
-Modulo Alert — soglie email per utente (RF-04).
+Modulo Alert — soglie email per utente (RF-04), multi-commodity (g008).
 
 Ogni utente vede e gestisce SOLO le proprie regole (filtro lato server
-sullo username autenticato). Le regole sono valutate ogni mattina dalla
-pipeline dopo il ricalcolo dell'indice; una sola email per utente
-raggruppa tutte le soglie raggiunte, con anti-duplicato per giorno e
-cooldown configurabile.
+sullo username autenticato) della commodity selezionata. Le regole sono
+valutate ogni mattina dalla pipeline dopo il ricalcolo; una sola email per
+utente e commodity raggruppa tutte le soglie raggiunte, con anti-duplicato
+per giorno e cooldown configurabile.
 """
 from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
 
+import commodity
 import db
 
-st.title("🔔 Alert")
+COM = commodity.corrente()
+INFO = commodity.info(COM)
+VARS = commodity.variabili(COM)
+
+st.title(f"🔔 Alert — {INFO['nome']}")
 st.caption("Ricevi un'email quando il segnale di fixing, lo scenario, il prezzo o una "
            "variabile raggiunge le soglie che imposti. Controllo ogni mattina, dopo "
            "l'aggiornamento dei dati; l'email riporta sempre la situazione del giorno.")
@@ -30,16 +35,19 @@ LIVELLI = {0: "attesa / finestra chiusa", 1: "monitorare",
            3: "minimo di periodo / segnale iniziale", 4: "segnale di fixing",
            5: "trend consolidato"}
 
+# grandezza -> (etichetta, udm, min, max, passo) — dall'anagrafica della commodity
 GRANDEZZE = {
-    "segnale":     ("🎯 Livello del segnale di fixing", "", 0.0, 5.0, 1.0),
-    "scenario":    ("🧭 Scenario di approvvigionamento", "/100", 0.0, 100.0, 1.0),
-    "prezzo":      ("🔥 Prezzo MGP-GAS", "€/MWh", 0.0, 500.0, 0.5),
-    "stoccaggi":   ("🛢 Riempimento stoccaggi IT", "%", 0.0, 100.0, 0.5),
-    "meteo":       ("🌡 Temperatura media paniere", "°C", -15.0, 40.0, 0.5),
-    "lng":         ("🚢 Send-out LNG", "GWh/g", 0.0, 1500.0, 10.0),
-    "geopolitica": ("🌍 Indice geopolitico GPR", "", 0.0, 1000.0, 5.0),
-    "indice":      ("📉 Indice di pressione (storico)", "/100", 0.0, 100.0, 1.0),
+    "segnale":  ("🎯 Livello del segnale di fixing", "", 0.0, 5.0, 1.0),
+    "scenario": ("🧭 Scenario di approvvigionamento", "/100", 0.0, 100.0, 1.0),
+    "prezzo":   (f"{INFO['icona']} Prezzo {INFO['prezzo_label']}", INFO["prezzo_udm"],
+                 *commodity.range_soglia(INFO["prezzo_udm"])),
 }
+for v in VARS:
+    GRANDEZZE[v["variabile"]] = (f"{v['icona']} {v['etichetta']}",
+                                 "" if v["udm"] == "indice" else v["udm"],
+                                 *commodity.range_soglia(v["udm"]))
+if COM == "gas":   # grandezza storica, solo per le regole gia' esistenti
+    GRANDEZZE["indice"] = ("📉 Indice di pressione (storico)", "/100", 0.0, 100.0, 1.0)
 COND = {"sopra": "sale sopra", "sotto": "scende sotto"}
 COND_SEGNALE = {"sopra": "raggiunge almeno", "sotto": "scende sotto"}
 
@@ -61,7 +69,8 @@ def _regole(uid: int) -> pd.DataFrame:
         "       a.note, "
         "       (SELECT max(i.inviato_at) FROM public.gas_alert_inviati i "
         "         WHERE i.alert_id = a.id) AS ultimo_invio "
-        "FROM public.gas_alert a WHERE a.utente_id = %s ORDER BY a.id", (uid,))
+        "FROM public.gas_alert a WHERE a.utente_id = %s AND a.commodity = %s ORDER BY a.id",
+        (uid, COM))
     return pd.DataFrame(rows, columns=[
         "id", "grandezza", "condizione", "soglia", "attivo", "cooldown_gg",
         "note", "ultimo_invio"])
@@ -78,7 +87,7 @@ if not u:
 uid, email_att = int(u[0]), (u[1] or "")
 
 # =============================================================================
-# Email di destinazione
+# Email di destinazione (unica per utente, vale per tutte le commodity)
 # =============================================================================
 st.subheader("Indirizzo email")
 with st.form("form_email", border=False):
@@ -105,11 +114,11 @@ if not email_att:
 # =============================================================================
 # Nuova regola
 # =============================================================================
-st.subheader("Nuova soglia")
+st.subheader(f"Nuova soglia · {INFO['nome'].lower()}")
+_scelte = [k for k in GRANDEZZE if k != "indice"]
 with st.form("form_nuova", clear_on_submit=True, border=False):
     c1, c2, c3, c4 = st.columns([3, 2, 2, 1.2])
-    g = c1.selectbox("Grandezza", list(GRANDEZZE),
-                     format_func=lambda k: GRANDEZZE[k][0])
+    g = c1.selectbox("Grandezza", _scelte, format_func=lambda k: GRANDEZZE[k][0])
     cond = c2.selectbox("Condizione", list(COND), format_func=lambda k: COND[k])
     _, udm, vmin, vmax, step = GRANDEZZE[g]
     if g == "segnale":
@@ -126,8 +135,8 @@ with st.form("form_nuova", clear_on_submit=True, border=False):
         with db.connect() as conn:
             conn.execute(
                 "INSERT INTO public.gas_alert "
-                "(utente_id, grandezza, condizione, soglia, cooldown_gg) "
-                "VALUES (%s,%s,%s,%s,%s)", (uid, g, cond, soglia, cooldown))
+                "(utente_id, commodity, grandezza, condizione, soglia, cooldown_gg) "
+                "VALUES (%s,%s,%s,%s,%s,%s)", (uid, COM, g, cond, soglia, cooldown))
             conn.commit()
         st.success("Soglia aggiunta.")
         st.rerun()
@@ -135,10 +144,10 @@ with st.form("form_nuova", clear_on_submit=True, border=False):
 # =============================================================================
 # Regole esistenti
 # =============================================================================
-st.subheader("Le tue soglie")
+st.subheader(f"Le tue soglie · {INFO['nome'].lower()}")
 df = _regole(uid)
 if df.empty:
-    st.caption("Nessuna soglia impostata.")
+    st.caption("Nessuna soglia impostata per questa commodity.")
     st.stop()
 
 for _, r in df.iterrows():
@@ -175,5 +184,5 @@ for _, r in df.iterrows():
 
 st.divider()
 st.caption("Le soglie sono valutate sul dato del giorno precedente. Una sola email "
-           "al giorno raggruppa tutte le soglie raggiunte; una soglia già "
+           "al giorno per commodity raggruppa tutte le soglie raggiunte; una soglia già "
            "notificata tace per il numero di giorni di pausa impostato.")

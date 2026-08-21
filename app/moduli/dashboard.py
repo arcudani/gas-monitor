@@ -1,15 +1,17 @@
 """
-Modulo Dashboard — Scenario + Prezzo + Segnale di fixing (requisiti v1.6-1.8).
+Modulo Dashboard — Scenario + Prezzo + Segnale di fixing (requisiti v1.6-1.8),
+multi-commodity dal 21/08/2026 (g008): gas (MGP-GAS) ed energia elettrica (PUN).
 
 Layout (design 19/08/2026, componenti gm-* in branding.py):
   1. due pannelli affiancati — SCENARIO (0-100, alto = favorevole
-     all'acquirente) | PREZZO MGP-GAS (in chiaro, tre trend)
+     all'acquirente) | PREZZO di riferimento (in chiaro, tre trend)
   2. SEGNALE del giorno a tutta larghezza: livello, testo, giorni, tacche
-  3. quattro stat tile delle variabili con barra punteggio 0-100
+  3. stat tile delle variabili con barra punteggio 0-100
   4. storico: prezzo + tre rette + bande dei giorni favorevoli; scenario + soglia
 Etichette fuori dai box, numeri grandi, testo in inchiostro neutro, colore
 solo sul dato (scala blu = intensita', nessun semaforo).
-Legge SOLO dati pre-calcolati (gas_segnale; cache 10').
+Legge SOLO dati pre-calcolati (gas_segnale; cache 10'). Etichette, variabili
+e fonti vengono dall'anagrafica (commodity.py), non sono cablate qui.
 """
 from __future__ import annotations
 
@@ -18,11 +20,17 @@ import pandas as pd
 import streamlit as st
 
 import branding
+import commodity
 import db
 
-st.title("📊 Gas Market Monitor")
-st.caption("Finestre favorevoli per il fixing del gas: scenario di "
-           "approvvigionamento, prezzo rispetto ai trend, segnale giornaliero.")
+COM = commodity.corrente()
+INFO = commodity.info(COM)
+VARS = commodity.variabili(COM)
+PZ_LBL, PZ_UDM = INFO["prezzo_label"], INFO["prezzo_udm"]
+
+st.title(f"📊 {commodity.titolo(COM)}")
+st.caption(f"Finestre favorevoli per il fixing — {INFO['nome'].lower()}: scenario di "
+           f"approvvigionamento, prezzo {PZ_LBL} rispetto ai trend, segnale giornaliero.")
 
 BLU, BLU_CHIARO, BLU_SCURO, INK = "#0F6FA8", "#7FB3D5", "#0B4F78", "#0f172a"
 # Trend: tre FORME e tre colori distinti (CVD validati 19/08): breve grigio ardesia
@@ -41,22 +49,20 @@ COL_LIV = ["#94a3b8", "#7FB3D5", "#5A9FCB", "#3D8BBF", "#1E6FA3", "#0B4F78"]
 
 
 # =============================================================================
-# Dati (cache 10 min)
+# Dati (cache 10 min, per commodity)
 # =============================================================================
 
 @st.cache_data(ttl=600, show_spinner="📡 Leggo segnale e serie…")
-def _carica() -> dict:
+def _carica(com: str) -> dict:
     seg = db.query(
         "SELECT data, scenario, scenario_medio, punteggi, prezzo, trend_breve, trend_medio, "
         "       trend_lungo, scost_breve_pct, scost_medio_pct, pendenza_lungo_pct, "
         "       pct_finestra1, pct_finestra2, prezzo_favorevole, favorevole, "
         "       giorni_consecutivi, codice, testo "
-        "FROM public.gas_segnale WHERE commodity = 'gas' ORDER BY data")
-    cfg = db.query("SELECT pesi FROM public.gas_pesi ORDER BY versione DESC LIMIT 1")
-    var = db.query(
-        "SELECT metrica, valore FROM public.gas_serie s "
-        "WHERE commodity='gas' AND metrica IN ('riempimento_pct','t_media_paniere','lng_sendout','gpr') "
-        "  AND data = (SELECT max(data) FROM public.gas_serie t WHERE t.metrica = s.metrica)")
+        "FROM public.gas_segnale WHERE commodity = %s ORDER BY data", (com,))
+    cfg = db.query("SELECT pesi FROM public.gas_pesi WHERE commodity = %s "
+                   "ORDER BY versione DESC LIMIT 1", (com,))
+    var = db.query(*commodity.sql_ultimi_valori(com))
     df = pd.DataFrame(seg, columns=[
         "Data", "Scenario", "ScenarioM", "Punteggi", "Prezzo", "TBreve", "TMedio", "TLungo",
         "ScB", "ScM", "PendL", "Pct1", "Pct2", "PzOk", "Fav", "N", "Codice", "Testo"])
@@ -65,15 +71,17 @@ def _carica() -> dict:
         for c in ("Scenario", "ScenarioM", "Prezzo", "TBreve", "TMedio", "TLungo",
                   "ScB", "ScM", "PendL", "Pct1", "Pct2"):
             df[c] = pd.to_numeric(df[c], errors="coerce")
-    fresh = db.query("SELECT serie, ultimo, giorni_fa FROM public.gas_freschezza() ORDER BY serie")
+    fresh = db.query("SELECT serie, ultimo, giorni_fa, tolleranza FROM public.gas_freschezza(%s) "
+                     "ORDER BY serie", (com,))
     run = db.query("SELECT started_at, status, left(coalesce(error,''),300) FROM public.task_runs "
                    "WHERE task_id='gas-monitor' ORDER BY started_at DESC LIMIT 1")
     return {"seg": df, "cfg": (cfg[0][0] if cfg else {}) or {},
-            "var": {m: float(v) for m, v in var}, "fresh": fresh, "run": run[0] if run else None}
+            "var": {k: (None if v is None else float(v)) for k, v in var},
+            "fresh": fresh, "run": run[0] if run else None}
 
 
 try:
-    dati = _carica()
+    dati = _carica(COM)
 except db.DBConfigError as e:
     st.warning(f"⚙️ {e}")
     st.stop()
@@ -87,10 +95,9 @@ except Exception as e:
 df, cfg, var = dati["seg"], dati["cfg"], dati["var"]
 
 # ---- Stato dei dati: banner se qualche serie e' stantia o l'ultimo run e' fallito ----
-TOLL = {"prezzo MGP_GAS": 2, "segnale": 2,          # le altre fonti pubblicano con 1-2 gg di ritardo: 3
-        "geopolitica gpr": 7}                       # il GPR e' aggiornato a mano dagli autori: puo' saltare giorni
+# (tolleranze dall'anagrafica: 2 gg prezzo/segnale, 3 le fonti, 7 il GPR aggiornato a mano)
 stantie = [f"{se} (ultimo {ul.strftime('%d/%m') if hasattr(ul, 'strftime') else ul}, {g} gg fa)"
-           for se, ul, g in dati["fresh"] if g is not None and int(g) > TOLL.get(se, 3)]
+           for se, ul, g, tol in dati["fresh"] if g is not None and int(g) > int(tol or 3)]
 run = dati["run"]
 run_ko = run is not None and run[1] != "success"
 if stantie or run_ko:
@@ -110,6 +117,8 @@ soglia = float(cfg.get("scenario_soglia", 60))
 gg_b, gg_m, gg_l = (int(cfg.get("trend_breve_gg", 20)), int(cfg.get("trend_medio_gg", 60)),
                     int(cfg.get("trend_lungo_gg", 180)))
 mf1, mf2 = int(cfg.get("minimo_finestra1_mesi", 6)), int(cfg.get("minimo_finestra2_mesi", 18))
+# variabili senza ancora dati (es. produzione EE prima del token ENTSO-E): si dichiarano
+senza_dati = [v for v in VARS if var.get(v["variabile"]) is None]
 
 
 def _it(v, dec=1) -> str:
@@ -144,6 +153,17 @@ pct1_txt = "n.d." if _p1 is None else (f"{_p1:.0f} %")
 pct1_lbl = (f"più alto del … degli ultimi {mf1} mesi" if _p1 is None else
             f"più alto del {_p1:.0f}% dei prezzi degli ultimi {mf1} mesi")
 
+
+def _mini_var(v: dict) -> str:
+    """Cella della mini-griglia scenario: etichetta corta + punteggio + barra."""
+    s = p.get(v["variabile"])
+    nome = f"{v['icona']} {v['etichetta'].split(' (')[0]}"
+    if s is None:
+        return f"<div>{nome}<b style='color:#94a3b8'>n.d.</b><div class='gm-bar'><span style='width:0'></span></div></div>"
+    return (f"<div>{nome}<b>{float(s):.0f}</b>"
+            f"<div class='gm-bar' style='--bar-color:{BLU}'><span style='width:{max(0, min(100, float(s))):.0f}%'></span></div></div>")
+
+
 st.markdown(f"<div class='gm-section'><div style='font-size:1.7rem;font-weight:800;color:#C00000;letter-spacing:-.02em;line-height:1.1'>Oggi</div><span>dati aggiornati al "
             f"{ult['Data'].strftime('%d/%m/%Y')}</span></div>", unsafe_allow_html=True)
 st.markdown(
@@ -157,21 +177,17 @@ st.markdown(
     "</div>"
     f"<div class='gm-sub'>{branding.gm_delta(sc - float(prec['Scenario']), 1)} vs ieri · "
     f"favorevole da {soglia:.0f} (sulla media)</div>"
-    "<div class='gm-mini'>"
-    + "".join(
-        f"<div>{lbl}<b>{(p.get(k) if p.get(k) is not None else 50):.0f}</b>"
-        f"<div class='gm-bar' style='--bar-color:{BLU}'><span style='width:{max(0, min(100, (p.get(k) if p.get(k) is not None else 50))):.0f}%'></span></div></div>"
-        for k, lbl in (("stoccaggi", "🛢 Stoccaggi"), ("meteo", "🌡 Meteo"),
-                       ("lng", "🚢 LNG"), ("geopolitica", "🌍 Geopolitica")))
+    f"<div class='gm-mini' style='grid-template-columns:repeat({max(1, len(VARS))}, minmax(0,1fr))'>"
+    + "".join(_mini_var(v) for v in VARS)
     + "</div></div></div>"
     # --- prezzo ---
-    "<div><div class='gm-label'>Prezzo gas MGP-GAS</div>"
+    f"<div><div class='gm-label'>Prezzo {INFO['nome'].lower()} {PZ_LBL}</div>"
     f"<div class='gm-panel'>"
     "<div class='gm-panel-top'>"
-    f"<div class='gm-value' style='color:{BLU}'>{_it(pz, 2)}<small>€/MWh</small></div>"
+    f"<div class='gm-value' style='color:{BLU}'>{_it(pz, 2)}<small>{PZ_UDM}</small></div>"
     f"<div class='gm-tag'>vs trend · <b style='color:{BLU_SCURO if pz_ok else '#64748b'}'>{'in flessione' if pz_ok else 'non in flessione'}</b></div>"
     "</div>"
-    f"<div class='gm-sub'>{branding.gm_delta(d_pz, 2, '€/MWh')} vs ieri · dato del {ult['Data'].strftime('%d/%m/%Y')}</div>"
+    f"<div class='gm-sub'>{branding.gm_delta(d_pz, 2, PZ_UDM)} vs ieri · dato del {ult['Data'].strftime('%d/%m/%Y')}</div>"
     "<div class='gm-mini gm-mini-ink'>"
     f"<div>vs breve {gg_b} gg<b>{_pct(ult['ScB'])}</b></div>"
     f"<div>vs medio {gg_m} gg<b>{_pct(ult['ScM'])}</b></div>"
@@ -181,6 +197,9 @@ st.markdown(
     "</div>",
     unsafe_allow_html=True,
 )
+if senza_dati:
+    st.caption("ℹ️ In attesa dei primi dati per: " + ", ".join(v["etichetta"] for v in senza_dati)
+               + " — nel frattempo contano come neutre (50/100) nello scenario.")
 
 # =============================================================================
 # 2. SEGNALE
@@ -188,8 +207,6 @@ st.markdown(
 nome_liv, liv = LIVELLI.get(ult["Codice"], (ult["Codice"], 0))
 col_liv = COL_LIV[liv]
 n = int(ult["N"])
-giorni_txt = (f"{n} giorn{'o' if n == 1 else 'i'} consecutiv{'o' if n == 1 else 'i'} favorevol{'e' if n == 1 else 'i'}"
-              if n else "nessun conteggio in corso")
 # perche' (una riga): stato dello scenario e del prezzo
 _mg = int(cfg.get("scenario_media_gg", 7))
 why = ("<ul class='gm-sig-list'>"
@@ -247,19 +264,17 @@ st.markdown(
 # =============================================================================
 # 3. Stat tile delle variabili
 # =============================================================================
-st.markdown("<div class='gm-label' style='margin-top:18px'>Le quattro variabili dello scenario</div>",
+_NUMERI = {2: "due", 3: "tre", 4: "quattro", 5: "cinque", 6: "sei"}
+st.markdown(f"<div class='gm-label' style='margin-top:18px'>Le {_NUMERI.get(len(VARS), len(VARS))} variabili dello scenario</div>",
             unsafe_allow_html=True)
 tiles = ""
-for k, lbl, metrica, fmt, unit, cosa in (
-    ("stoccaggi", "🛢 Stoccaggi Italia", "riempimento_pct", 1, "%", "riempimento vs media 5 anni"),
-    ("meteo", "🌡 Temperatura paniere", "t_media_paniere", 1, "°C", "vs norma dello stesso giorno"),
-    ("lng", "🚢 LNG send-out", "lng_sendout", 0, "GWh/g", "vs media 5 anni"),
-    ("geopolitica", "🌍 Rischio geopolitico", "gpr", 0, "", "indice GPR (basso = favorevole)"),
-):
-    v = var.get(metrica)
+for v in VARS:
+    val = var.get(v["variabile"])
     tiles += branding.gm_tile(
-        lbl, "n.d." if v is None else _it(v, fmt), unit, cosa,
-        accent=BLU, score=p.get(k), score_label="punteggio (alto = favorevole)")
+        f"{v['icona']} {v['etichetta']}",
+        "n.d." if val is None else _it(val, commodity.decimali(v["udm"])),
+        "" if v["udm"] == "indice" else v["udm"], commodity.confronto_breve(v),
+        accent=BLU, score=p.get(v["variabile"]), score_label="punteggio (alto = favorevole)")
 st.markdown(f"<div class='gm-grid'>{tiles}</div>", unsafe_allow_html=True)
 
 # =============================================================================
@@ -284,7 +299,7 @@ fin = (dfp[dfp["Acceso"]].groupby("grp")
        .agg(da=("Data", "min"), a=("Data", "max"), liv=("Liv", "max")).reset_index(drop=True))
 fin["a"] = fin["a"] + pd.Timedelta(days=1)
 
-st.markdown("**Prezzo MGP-GAS e trend**")
+st.markdown(f"**Prezzo {PZ_LBL} e trend**")
 st.markdown(branding.gm_legend([
     ("solid", C_PREZZO, "prezzo"), ("dot", C_BREVE, f"trend breve {gg_b} gg"),
     ("dash", C_MEDIO, f"trend medio {gg_m} gg"), ("solid", C_LUNGO, f"trend lungo {gg_l} gg"),
@@ -299,9 +314,9 @@ if not fin.empty:
 base = alt.Chart(dfp).encode(x=alt.X("Data:T", title=""))
 strati.append(alt.layer(
     base.mark_line(color=C_PREZZO, strokeWidth=2.2).encode(
-        y=alt.Y("Prezzo:Q", title="€/MWh", scale=alt.Scale(zero=False)),
+        y=alt.Y("Prezzo:Q", title=PZ_UDM, scale=alt.Scale(zero=False)),
         tooltip=[alt.Tooltip("Data:T", format="%d/%m/%Y"),
-                 alt.Tooltip("Prezzo:Q", format=".2f", title="Prezzo €/MWh"),
+                 alt.Tooltip("Prezzo:Q", format=".2f", title=f"Prezzo {PZ_UDM}"),
                  alt.Tooltip("ScB:Q", format="+.1f", title="vs breve %"),
                  alt.Tooltip("ScM:Q", format="+.1f", title="vs medio %"),
                  alt.Tooltip("Codice:N", title="Segnale")]),
@@ -324,7 +339,8 @@ ch_sc = alt.layer(
     alt.Chart(pd.DataFrame({"y": [soglia]})).mark_rule(color=BLU_SCURO, strokeDash=[5, 4]).encode(y="y:Q"),
 )
 branding.altair_it(ch_sc, width="stretch")
-st.caption("🗂 Fonti: GME MGP-GAS · GIE AGSI+/ALSI · Open-Meteo ERA5 · GPR Caldara-Iacoviello. "
+_fonti = [INFO["prezzo_fonte"].split(",")[0]] + sorted({v["fonte"] for v in VARS})
+st.caption("🗂 Fonti: " + " · ".join(_fonti) + ". "
            "Punteggi = rango percentile 2020–oggi orientato a favore dell'acquirente.")
 
 st.divider()

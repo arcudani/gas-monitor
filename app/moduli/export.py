@@ -1,7 +1,7 @@
 """
 Modulo Export (RF-05): PDF snapshot della situazione in veste Bros ed Excel
-delle serie storiche del periodo filtrato. La generazione e' in export.py
-(funzioni pure); qui solo filtri e download_button.
+delle serie storiche del periodo filtrato, per la commodity selezionata.
+La generazione e' in export.py (funzioni pure); qui solo filtri e download_button.
 """
 from __future__ import annotations
 
@@ -11,24 +11,31 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+import commodity
 import db
-import export
+import export_docs as export
 
-st.title("📤 Export")
+COM = commodity.corrente()
+INFO = commodity.info(COM)
+VARS = commodity.variabili(COM)
+
+st.title(f"📤 Export — {INFO['nome']}")
 st.caption("Scarica lo snapshot PDF della situazione odierna o le serie "
            "storiche in Excel per il periodo che scegli.")
 
 LOGO = Path(__file__).resolve().parent.parent / "assets" / "Logo_Bros_Consulenza_460.png"
+CTX = export.contesto(INFO, VARS)
 
 
 @st.cache_data(ttl=600, show_spinner="📡 Preparo i dati…")
-def _segnale() -> tuple[pd.DataFrame, dict]:
+def _segnale(com: str) -> tuple[pd.DataFrame, dict]:
     rows = db.query(
         "SELECT data, scenario, scenario_medio, punteggi, prezzo, trend_breve, "
         "       trend_medio, trend_lungo, scost_breve_pct, scost_medio_pct, "
         "       pendenza_lungo_pct, prezzo_favorevole, giorni_consecutivi, codice, testo "
-        "FROM public.gas_segnale WHERE commodity='gas' ORDER BY data")
-    cfg = db.query("SELECT pesi FROM public.gas_pesi ORDER BY versione DESC LIMIT 1")
+        "FROM public.gas_segnale WHERE commodity=%s ORDER BY data", (com,))
+    cfg = db.query("SELECT pesi FROM public.gas_pesi WHERE commodity=%s "
+                   "ORDER BY versione DESC LIMIT 1", (com,))
     df = pd.DataFrame(rows, columns=[
         "Data", "Scenario", "ScenarioM", "Punteggi", "Prezzo", "TBreve", "TMedio",
         "TLungo", "ScB", "ScM", "PendL", "PzOk", "N", "Codice", "Testo"])
@@ -41,19 +48,30 @@ def _segnale() -> tuple[pd.DataFrame, dict]:
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def _variabili(dal: dt.date, al: dt.date) -> pd.DataFrame:
-    rows = db.query(
-        "SELECT data, metrica, valore FROM public.gas_serie "
-        "WHERE commodity='gas' AND data BETWEEN %s AND %s ORDER BY data", (dal, al))
-    df = pd.DataFrame(rows, columns=["Data", "Metrica", "Valore"])
-    if not df.empty:
-        df["Data"] = pd.to_datetime(df["Data"])
-        df["Valore"] = pd.to_numeric(df["Valore"], errors="coerce")
+def _variabili(com: str, dal: dt.date, al: dt.date) -> pd.DataFrame:
+    """Serie di tutte le variabili della commodity nel periodo: Data, Metrica, Valore
+    (Metrica = etichetta leggibile, per il foglio Excel)."""
+    pezzi = []
+    for v in commodity.variabili(com):
+        sql, params = commodity.sql_valori(v)
+        sql = f"SELECT data, valore FROM ({sql.replace(' ORDER BY data', '')}) q " \
+              f"WHERE data BETWEEN %s AND %s ORDER BY data"
+        rows = db.query(sql, (*params, dal, al))
+        if rows:
+            d = pd.DataFrame(rows, columns=["Data", "Valore"])
+            d["Metrica"] = (f"{v['etichetta']} ({v['udm']})"
+                            if v["udm"] not in ("", "indice") else v["etichetta"])
+            pezzi.append(d)
+    if not pezzi:
+        return pd.DataFrame(columns=["Data", "Metrica", "Valore"])
+    df = pd.concat(pezzi, ignore_index=True)[["Data", "Metrica", "Valore"]]
+    df["Data"] = pd.to_datetime(df["Data"])
+    df["Valore"] = pd.to_numeric(df["Valore"], errors="coerce")
     return df
 
 
 try:
-    df, cfg = _segnale()
+    df, cfg = _segnale(COM)
 except Exception as e:
     st.error(f"📡 Impossibile leggere i dati: {e}")
     st.stop()
@@ -63,6 +81,7 @@ if df.empty:
 
 ult = df.iloc[-1]
 prec = df.iloc[-2] if len(df) > 1 else ult
+prefisso = "gas_monitor" if COM == "gas" else f"{COM}_monitor"
 
 # =============================================================================
 # PDF snapshot
@@ -78,10 +97,10 @@ sit = dict(
     sc_b=ult["ScB"], sc_m=ult["ScM"], pend_l=ult["PendL"], pz_ok=bool(ult["PzOk"]),
     codice=ult["Codice"], n=int(ult["N"]), testo=ult["Testo"],
 )
-pdf_bytes = export.pdf_snapshot(sit, df, cfg, LOGO)
+pdf_bytes = export.pdf_snapshot(sit, df, cfg, LOGO, CTX)
 st.download_button(
     "⬇️ Scarica snapshot PDF", data=pdf_bytes,
-    file_name=f"gas_monitor_{ult['Data'].strftime('%Y%m%d')}.pdf",
+    file_name=f"{prefisso}_{ult['Data'].strftime('%Y%m%d')}.pdf",
     mime="application/pdf", type="primary",
 )
 
@@ -110,14 +129,14 @@ else:
     al = fine
 
 seg_p = df[(df["Data"].dt.date >= dal) & (df["Data"].dt.date <= al)]
-var_p = _variabili(dal, al)
+var_p = _variabili(COM, dal, al)
 st.caption(f"Periodo {dal.strftime('%d/%m/%Y')} – {al.strftime('%d/%m/%Y')}: "
            f"{len(seg_p)} giorni di segnale, {len(var_p)} righe di variabili. "
            "Fogli: Segnale · Variabili · Note.")
-xlsx_bytes = export.excel_serie(seg_p, var_p, dal, al)
+xlsx_bytes = export.excel_serie(seg_p, var_p, dal, al, CTX)
 st.download_button(
     "⬇️ Scarica Excel", data=xlsx_bytes,
-    file_name=f"gas_monitor_serie_{dal.strftime('%Y%m%d')}_{al.strftime('%Y%m%d')}.xlsx",
+    file_name=f"{prefisso}_serie_{dal.strftime('%Y%m%d')}_{al.strftime('%Y%m%d')}.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 )
 

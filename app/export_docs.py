@@ -45,16 +45,50 @@ def _it(v, dec: int = 2) -> str:
     return f"{float(v):,.{dec}f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+# Contesto di commodity per i documenti (g008): titolo, etichette prezzo,
+# variabili dello scenario e fonti. Default = gas storico, cosi' le chiamate
+# esistenti (e i test offline) restano valide.
+CTX_GAS = {
+    "titolo": "Gas Market Monitor", "prezzo_label": "MGP-GAS", "prezzo_udm": "€/MWh",
+    "prezzo_nome": "PREZZO GAS MGP-GAS",
+    "variabili": [("stoccaggi", "Stoccaggi"), ("meteo", "Meteo"), ("lng", "LNG"), ("geopolitica", "Geo")],
+    "fonti": ["Prezzo: GME — MGP-GAS (mercato del giorno prima gas), €/MWh",
+              "Stoccaggi: GIE AGSI+ (Italia)", "LNG: GIE ALSI (Italia)",
+              "Meteo: Open-Meteo / ERA5, paniere città pesato per consumo gas",
+              "Geopolitica: GPR daily — Caldara & Iacoviello"],
+    "fonti_breve": "GME MGP-GAS · GIE AGSI+/ALSI · Open-Meteo ERA5 · GPR Caldara-Iacoviello",
+}
+
+
+def contesto(info: dict, variabili: list[dict]) -> dict:
+    """Costruisce il contesto documenti dall'anagrafica (commodity.info/variabili)."""
+    if info.get("commodity", "gas") == "gas" and not variabili:
+        return CTX_GAS
+    nome = info["nome"]
+    titolo = "Gas Market Monitor" if info["commodity"] == "gas" else f"Market Monitor — {nome}"
+    return {
+        "titolo": titolo, "prezzo_label": info["prezzo_label"], "prezzo_udm": info["prezzo_udm"],
+        "prezzo_nome": f"PREZZO {nome.upper()} {info['prezzo_label']}",
+        "variabili": [(v["variabile"], v["etichetta"].split(" (")[0]) for v in variabili],
+        "fonti": [f"Prezzo: {info['prezzo_fonte']}, {info['prezzo_udm']}"]
+                 + [f"{v['etichetta']}: {v['fonte']}" for v in variabili],
+        "fonti_breve": " · ".join([info["prezzo_fonte"].split(",")[0]]
+                                  + sorted({v["fonte"] for v in variabili})),
+    }
+
+
 # =============================================================================
 # EXCEL
 # =============================================================================
 
 def excel_serie(df_seg: pd.DataFrame, df_var: pd.DataFrame,
-                dal: dt.date, al: dt.date) -> bytes:
+                dal: dt.date, al: dt.date, ctx: dict | None = None) -> bytes:
     """Workbook con 3 fogli: Segnale (giorno per giorno), Variabili (serie
     pivotate per giorno), Note (fonti, periodo, disclaimer).
     df_seg colonne: Data, Scenario, ScenarioM, Prezzo, TBreve, TMedio, TLungo,
-      ScB, ScM, Codice, N, Testo.  df_var: Data, Metrica, Valore."""
+      ScB, ScM, Codice, N, Testo.  df_var: Data, Metrica, Valore.
+    ctx: contesto commodity (vedi contesto()); default gas."""
+    ctx = ctx or CTX_GAS
     wb = Workbook()
     h_font = Font(bold=True, color="FFFFFF")
     h_fill = PatternFill("solid", fgColor="C00000")
@@ -70,7 +104,7 @@ def excel_serie(df_seg: pd.DataFrame, df_var: pd.DataFrame,
     # --- Segnale ---
     ws = wb.active
     ws.title = "Segnale"
-    cols = ["Data", "Scenario", "Scenario media", "Prezzo €/MWh", "Trend breve",
+    cols = ["Data", "Scenario", "Scenario media", f"Prezzo {ctx['prezzo_udm']}", "Trend breve",
             "Trend medio", "Trend lungo", "vs breve %", "vs medio %",
             "Segnale", "Giorni consecutivi", "Testo"]
     _intesta(ws, cols)
@@ -118,16 +152,12 @@ def excel_serie(df_seg: pd.DataFrame, df_var: pd.DataFrame,
     # --- Note ---
     ws3 = wb.create_sheet("Note")
     righe = [
-        ["Gas Market Monitor — Bros Consulenza s.r.l."],
+        [f"{ctx['titolo']} — Bros Consulenza s.r.l."],
         [f"Periodo: {dal.strftime('%d/%m/%Y')} – {al.strftime('%d/%m/%Y')}"],
         [f"Generato il {dt.datetime.now().strftime('%d/%m/%Y %H:%M')}"],
         [],
         ["Fonti"],
-        ["Prezzo: GME — MGP-GAS (mercato del giorno prima gas), €/MWh"],
-        ["Stoccaggi: GIE AGSI+ (Italia)"],
-        ["LNG: GIE ALSI (Italia)"],
-        ["Meteo: Open-Meteo / ERA5, paniere città pesato per consumo gas"],
-        ["Geopolitica: GPR daily — Caldara & Iacoviello"],
+        *[[f] for f in ctx["fonti"]],
         [],
         ["Scenario 0–100: fondamentali orientati a favore dell'acquirente (rango percentile 2020–oggi)."],
         ["Segnale: scenario (media mobile) ≥ soglia e prezzo in flessione vs trend, per n giorni consecutivi; "
@@ -151,15 +181,17 @@ def excel_serie(df_seg: pd.DataFrame, df_var: pd.DataFrame,
 # =============================================================================
 
 def pdf_snapshot(sit: dict, df_seg: pd.DataFrame, cfg: dict,
-                 logo_path: Path | None = None) -> bytes:
+                 logo_path: Path | None = None, ctx: dict | None = None) -> bytes:
     """Snapshot A4 della situazione: intestazione Bros, pannelli scenario/
     prezzo/segnale, tabella ultimi 14 giorni, fonti e disclaimer.
     sit: {data, scenario, scenario_m, punteggi{}, prezzo, d_prezzo, sc_b, sc_m,
-          pend_l, codice, n, testo}."""
+          pend_l, codice, n, testo}. ctx: contesto commodity (default gas)."""
+    ctx = ctx or CTX_GAS
+    udm = ctx["prezzo_udm"]
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm,
                             topMargin=14 * mm, bottomMargin=14 * mm,
-                            title="Gas Market Monitor — snapshot",
+                            title=f"{ctx['titolo']} — snapshot",
                             author="Bros Consulenza s.r.l.")
     st_t = ParagraphStyle("t", fontName="Helvetica-Bold", fontSize=17,
                           textColor=colors.HexColor(ROSSO), spaceAfter=2)
@@ -178,7 +210,7 @@ def pdf_snapshot(sit: dict, df_seg: pd.DataFrame, cfg: dict,
 
     el = []
     # intestazione
-    testata = [[Paragraph("Gas Market Monitor", st_t),
+    testata = [[Paragraph(ctx["titolo"], st_t),
                 Image(str(logo_path), width=28 * mm, height=28 * mm * 0.62)
                 if logo_path and Path(logo_path).exists() else ""]]
     t = Table(testata, colWidths=[140 * mm, 34 * mm])
@@ -200,16 +232,15 @@ def pdf_snapshot(sit: dict, df_seg: pd.DataFrame, cfg: dict,
           Paragraph(f"{sit['scenario']:.0f} <font size=10 color='#475569'>/100 · {scen_fascia}</font>", st_big),
           Paragraph(f"media {int(cfg.get('scenario_media_gg', 7))} gg: {sit['scenario_m']:.0f} "
                     f"(soglia {float(cfg.get('scenario_soglia', 60)):.0f})", st_small),
-          Paragraph(" · ".join(f"{n} {p.get(k, 50):.0f}" for k, n in
-                               (("stoccaggi", "Stoccaggi"), ("meteo", "Meteo"),
-                                ("lng", "LNG"), ("geopolitica", "Geo"))), st_small)]
+          Paragraph(" · ".join(f"{n} {p[k]:.0f}" if p.get(k) is not None else f"{n} n.d."
+                               for k, n in ctx["variabili"]), st_small)]
     ver = "prezzo in flessione" if sit.get("pz_ok") else "prezzo non in flessione"
-    dx = [Paragraph("PREZZO GAS MGP-GAS", st_h),
-          Paragraph(f"{_it(sit['prezzo'], 2)} <font size=10 color='#475569'>€/MWh · {ver}</font>", st_big_k),
+    dx = [Paragraph(ctx["prezzo_nome"], st_h),
+          Paragraph(f"{_it(sit['prezzo'], 2)} <font size=10 color='#475569'>{udm} · {ver}</font>", st_big_k),
           Paragraph(f"vs trend breve {_pct(sit['sc_b'])} · vs trend medio {_pct(sit['sc_m'])} · "
                     f"trend lungo {_dir(sit['pend_l'])}", st_small),
           Paragraph(f"{'▲' if sit['d_prezzo'] > 0 else '▼' if sit['d_prezzo'] < 0 else '='} "
-                    f"{_it(abs(sit['d_prezzo']), 2)} €/MWh vs giorno precedente", st_small)]
+                    f"{_it(abs(sit['d_prezzo']), 2)} {udm} vs giorno precedente", st_small)]
     tp = Table([[sx, dx]], colWidths=[87 * mm, 87 * mm])
     tp.setStyle(TableStyle([
         ("BOX", (0, 0), (0, 0), 0.6, colors.HexColor("#e7eaf0")),
@@ -246,7 +277,7 @@ def pdf_snapshot(sit: dict, df_seg: pd.DataFrame, cfg: dict,
         "h2", fontName="Helvetica-Bold", fontSize=11, textColor=colors.HexColor("#0f172a"),
         spaceAfter=4)))
     ultimi = df_seg.tail(14).iloc[::-1]
-    righe = [["Data", "Scenario", "Media", "Prezzo €/MWh", "vs breve", "vs medio", "Segnale"]]
+    righe = [["Data", "Scenario", "Media", f"Prezzo {udm}", "vs breve", "vs medio", "Segnale"]]
     for _, r in ultimi.iterrows():
         righe.append([pd.Timestamp(r["Data"]).strftime("%d/%m"),
                       f"{float(r['Scenario']):.0f}" if pd.notna(r["Scenario"]) else "–",
@@ -268,7 +299,7 @@ def pdf_snapshot(sit: dict, df_seg: pd.DataFrame, cfg: dict,
     el += [tt, Spacer(1, 10)]
 
     el.append(Paragraph(
-        "Fonti: GME MGP-GAS · GIE AGSI+/ALSI · Open-Meteo ERA5 · GPR Caldara-Iacoviello. "
+        f"Fonti: {ctx['fonti_breve']}. "
         "Scenario = fondamentali orientati a favore dell'acquirente (rango percentile 2020–oggi). "
         "Segnale = scenario (media mobile) ≥ soglia e prezzo in flessione vs trend per n giorni; "
         "opportunità di prezzo = prezzo in netta flessione sul trend medio con scenario non sfavorevole.",

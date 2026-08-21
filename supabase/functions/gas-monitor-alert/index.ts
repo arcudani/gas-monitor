@@ -1,17 +1,19 @@
-// Edge Function `gas-monitor-alert` — valutazione soglie e invio email (RF-04).
+// Edge Function `gas-monitor-alert` — valutazione soglie e invio email (RF-04),
+// multi-commodity dal 21/08/2026 (g008: gas + energia elettrica).
 //
 // Invocata da `gas-monitor` al termine del run giornaliero (dopo il
-// ricalcolo dell'indice), oppure a mano:
+// ricalcolo del segnale), oppure a mano:
 //   ?preview=1          valuta e ritorna cosa invierebbe, SENZA inviare ne'
 //                       registrare (test sicuro)
 //   ?data=YYYY-MM-DD    giorno del dato da valutare (default ieri, Roma)
 //
-// Logica: per ogni regola attiva (gas_alert) con utente attivo e email
-// valorizzata, legge il valore del giorno (indice da gas_indice; variabili
-// da gas_serie/indici_mercato), verifica la condizione, controlla
-// anti-duplicato (stesso alert+giorno) e cooldown (ultimo invio < N gg),
-// poi manda UNA email per utente che raggruppa tutte le sue regole scattate
-// (Brevo HTTP API, mittente verificato energia@) e registra gli invii.
+// Logica: per ogni regola attiva (gas_alert, con la sua commodity) con utente
+// attivo e email valorizzata, legge il valore del giorno (segnale/scenario da
+// gas_segnale; prezzo da indici_mercato secondo gas_commodity; variabili
+// secondo gas_variabili), verifica la condizione, controlla anti-duplicato
+// (stesso alert+giorno) e cooldown (ultimo invio < N gg), poi manda UNA email
+// per utente E commodity che raggruppa tutte le regole scattate (Brevo HTTP
+// API, mittente verificato energia@) e registra gli invii.
 //
 // Regola aziendale email: nessun riferimento all'automazione nel testo.
 
@@ -65,23 +67,40 @@ function ieriRoma(): string {
   return d.toISOString().slice(0, 10);
 }
 
-// Etichette/unita' per grandezza (email in italiano, numeri formato IT)
-const GRANDEZZE: Record<string, { nome: string; udm: string; dec: number }> = {
-  indice:      { nome: "Indice di pressione (storico)", udm: "/100",   dec: 0 },
-  scenario:    { nome: "Scenario di approvvigionamento", udm: "/100",  dec: 0 },
-  segnale:     { nome: "Livello del segnale",           udm: "",        dec: 0 },
-  prezzo:      { nome: "Prezzo gas MGP-GAS",          udm: "€/MWh",   dec: 2 },
-  stoccaggi:   { nome: "Riempimento stoccaggi IT",    udm: "%",       dec: 1 },
-  meteo:       { nome: "Temperatura media paniere",   udm: "°C",      dec: 1 },
-  lng:         { nome: "Send-out LNG",                udm: "GWh/g",   dec: 0 },
-  geopolitica: { nome: "Indice geopolitico GPR",      udm: "",        dec: 0 },
-};
-const METRICA: Record<string, string> = {
-  stoccaggi: "riempimento_pct", meteo: "t_media_paniere",
-  lng: "lng_sendout", geopolitica: "gpr",
-};
+function fmtIt(v: number, dec: number): string {
+  return v.toLocaleString("it-IT", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
 
-// Segnale del giorno (gas_segnale, requisiti v1.6): scenario, prezzo e testo
+function decimali(udm: string): number {
+  return udm === "€/MWh" ? 2 : (udm === "GWh/g" || udm === "indice" || udm === "") ? 0 : 1;
+}
+
+// ---------------------------------------------------------------- anagrafica (g008)
+type Commodity = {
+  commodity: string; nome: string; icona: string; prezzo_codice: string;
+  prezzo_label: string; prezzo_udm: string; prezzo_aggregazione: string;
+};
+type Variabile = {
+  commodity: string; variabile: string; etichetta: string; icona: string; udm: string;
+  sorgente: string; commodity_dati: string | null; variabile_dati: string | null;
+  metrica_dati: string | null; codice_indice: string | null;
+};
+type Grandezza = { nome: string; udm: string; dec: number };
+
+function grandezze(c: Commodity, vars: Variabile[]): Record<string, Grandezza> {
+  const g: Record<string, Grandezza> = {
+    indice:   { nome: "Indice di pressione (storico)", udm: "/100", dec: 0 },
+    scenario: { nome: "Scenario di approvvigionamento", udm: "/100", dec: 0 },
+    segnale:  { nome: "Livello del segnale", udm: "", dec: 0 },
+    prezzo:   { nome: `Prezzo ${c.nome.toLowerCase()} ${c.prezzo_label}`, udm: c.prezzo_udm, dec: 2 },
+  };
+  for (const v of vars) {
+    g[v.variabile] = { nome: v.etichetta, udm: v.udm === "indice" ? "" : v.udm, dec: decimali(v.udm) };
+  }
+  return g;
+}
+
+// Segnale del giorno (gas_segnale): scenario, prezzo e testo
 type Segnale = {
   data: string; scenario: number; prezzo: number; codice: string; testo: string;
   giorni_consecutivi: number; scost_breve_pct: number | null; scost_medio_pct: number | null;
@@ -95,8 +114,8 @@ const NOME_SEGNALE: Record<string, string> = {
   prime: "prime condizioni", iniziale: "segnale iniziale", fixing: "segnale di fixing",
   trend: "trend consolidato",
 };
-async function segnaleDelGiorno(data: string): Promise<Segnale | null> {
-  const r = await q(`gas_segnale?commodity=eq.gas&data=lte.${data}&order=data.desc&limit=1` +
+async function segnaleDelGiorno(commodity: string, data: string): Promise<Segnale | null> {
+  const r = await q(`gas_segnale?commodity=eq.${commodity}&data=lte.${data}&order=data.desc&limit=1` +
     `&select=data,scenario,prezzo,codice,testo,giorni_consecutivi,scost_breve_pct,scost_medio_pct`);
   if (!r[0]) return null;
   const x = r[0];
@@ -106,37 +125,59 @@ async function segnaleDelGiorno(data: string): Promise<Segnale | null> {
            scost_medio_pct: x.scost_medio_pct === null ? null : Number(x.scost_medio_pct) };
 }
 
-function fmtIt(v: number, dec: number): string {
-  return v.toLocaleString("it-IT", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+// Ultimo valore (<= data) di un indice di mercato: media delle righe del giorno
+// (il PUN e' orario: 24 righe; MGP-GAS una riga)
+async function indiceDelGiorno(codice: string, data: string): Promise<{ v: number; d: string } | null> {
+  const u = await q(`indici_mercato?codice=eq.${codice}&stato=eq.consuntivo&data=lte.${data}&order=data.desc&limit=1&select=data`);
+  if (!u[0]) return null;
+  const giorno = u[0].data as string;
+  const rows = await q(`indici_mercato?codice=eq.${codice}&stato=eq.consuntivo&data=eq.${giorno}&select=valore`);
+  if (!rows.length) return null;
+  const media = rows.reduce((s, r) => s + Number(r.valore), 0) / rows.length;
+  return { v: media, d: giorno };
 }
 
-// Valori del giorno per tutte le grandezze (fill-forward: ultimo disponibile <= data)
-async function valoriDelGiorno(data: string): Promise<Record<string, { v: number; d: string }>> {
+// Valori del giorno per tutte le grandezze di una commodity (fill-forward: ultimo disponibile <= data)
+async function valoriDelGiorno(c: Commodity, vars: Variabile[], data: string)
+  : Promise<Record<string, { v: number; d: string }>> {
   const out: Record<string, { v: number; d: string }> = {};
-  const idx = await q(`gas_indice?commodity=eq.gas&data=lte.${data}&order=data.desc&limit=1&select=data,valore`);
-  if (idx[0]) out.indice = { v: Number(idx[0].valore), d: idx[0].data };
-  const sg = await segnaleDelGiorno(data);
+  if (c.commodity === "gas") {
+    const idx = await q(`gas_indice?commodity=eq.gas&data=lte.${data}&order=data.desc&limit=1&select=data,valore`);
+    if (idx[0]) out.indice = { v: Number(idx[0].valore), d: idx[0].data };
+  }
+  const sg = await segnaleDelGiorno(c.commodity, data);
   if (sg) {
     out.scenario = { v: sg.scenario, d: sg.data };
     out.segnale = { v: LIVELLI[sg.codice] ?? 0, d: sg.data };
   }
-  const pz = await q(`indici_mercato?codice=eq.MGP_GAS&stato=eq.consuntivo&data=lte.${data}&order=data.desc&limit=1&select=data,valore`);
-  if (pz[0]) out.prezzo = { v: Number(pz[0].valore), d: pz[0].data };
-  for (const [g, m] of Object.entries(METRICA)) {
-    const r = await q(`gas_serie?commodity=eq.gas&metrica=eq.${m}&data=lte.${data}&order=data.desc&limit=1&select=data,valore`);
-    if (r[0]) out[g] = { v: Number(r[0].valore), d: r[0].data };
+  const pz = await indiceDelGiorno(c.prezzo_codice, data);
+  if (pz) out.prezzo = pz;
+  for (const v of vars) {
+    if (v.sorgente === "indice" && v.codice_indice) {
+      const x = await indiceDelGiorno(v.codice_indice, data);
+      if (x) out[v.variabile] = x;
+    } else {
+      const r = await q(`gas_serie?commodity=eq.${v.commodity_dati}&variabile=eq.${v.variabile_dati}` +
+        `&metrica=eq.${v.metrica_dati}&data=lte.${data}&order=data.desc&limit=1&select=data,valore`);
+      if (r[0]) out[v.variabile] = { v: Number(r[0].valore), d: r[0].data };
+    }
   }
   return out;
 }
 
 type Scattato = {
-  alert_id: number; utente_id: number; username: string; email: string;
+  alert_id: number; utente_id: number; username: string; email: string; commodity: string;
   grandezza: string; condizione: string; soglia: number; valore: number; data_dato: string;
 };
 
-function htmlEmail(username: string, righe: Scattato[], data: string, sg: Segnale | null): string {
+function titolo(c: Commodity): string {
+  return c.commodity === "gas" ? "Gas Market Monitor" : `Market Monitor — ${c.nome}`;
+}
+
+function htmlEmail(c: Commodity, G: Record<string, Grandezza>, username: string,
+                   righe: Scattato[], data: string, sg: Segnale | null): string {
   const tr = righe.map((s) => {
-    const g = GRANDEZZE[s.grandezza];
+    const g = G[s.grandezza] ?? { nome: s.grandezza, udm: "", dec: 1 };
     const cond = s.condizione === "sopra" ? "sopra" : "sotto";
     if (s.grandezza === "segnale") {
       const nomeLiv = (n: number) => Object.entries(LIVELLI).find(([, v]) => v === n)?.[0] ?? String(n);
@@ -153,17 +194,17 @@ function htmlEmail(username: string, righe: Scattato[], data: string, sg: Segnal
     </tr>`;
   }).join("");
   const dataIt = new Date(`${data}T00:00:00Z`).toLocaleDateString("it-IT", { timeZone: "UTC" });
-  const link = APP_URL ? `<p style="margin-top:18px"><a href="${esc(APP_URL)}" style="color:${RED};font-weight:600">Apri il Gas Market Monitor →</a></p>` : "";
+  const link = APP_URL ? `<p style="margin-top:18px"><a href="${esc(APP_URL)}" style="color:${RED};font-weight:600">Apri il ${esc(titolo(c))} →</a></p>` : "";
   return `<div style="font-family:Inter,Arial,sans-serif;max-width:640px;margin:auto;color:#0f172a">
-    <h2 style="color:${RED};border-bottom:3px solid ${RED};padding-bottom:8px">Gas Market Monitor — soglie raggiunte</h2>
-    <p style="font-size:15px">Buongiorno ${esc(username)},<br>con i dati aggiornati al <b>${esc(dataIt)}</b> sono state raggiunte le soglie che hai impostato:</p>
+    <h2 style="color:${RED};border-bottom:3px solid ${RED};padding-bottom:8px">${esc(titolo(c))} — soglie raggiunte</h2>
+    <p style="font-size:15px">Buongiorno ${esc(username)},<br>con i dati aggiornati al <b>${esc(dataIt)}</b> sono state raggiunte le soglie che hai impostato per <b>${esc(c.nome.toLowerCase())}</b>:</p>
     ${sg === null ? "" : `<div style="margin:14px 0 18px;padding:14px 16px;background:#f6f7f9;border-left:4px solid ${BLU};border-radius:6px">
-      <div style="font-size:13px;color:#475569;text-transform:uppercase;letter-spacing:.04em">Situazione odierna</div>
+      <div style="font-size:13px;color:#475569;text-transform:uppercase;letter-spacing:.04em">Situazione odierna · ${esc(c.nome)}</div>
       <div style="display:flex;gap:28px;flex-wrap:wrap;margin-top:6px">
         <div><div style="font-size:12px;color:#64748b">Scenario di approvvigionamento</div>
              <div style="font-size:26px;font-weight:800;color:${BLU};line-height:1.1">${fmtIt(sg.scenario, 0)}<span style="font-size:13px;font-weight:600;color:#475569"> /100</span></div></div>
-        <div><div style="font-size:12px;color:#64748b">Prezzo gas MGP-GAS</div>
-             <div style="font-size:26px;font-weight:800;color:#0f172a;line-height:1.1">${fmtIt(sg.prezzo, 2)}<span style="font-size:13px;font-weight:600;color:#475569"> €/MWh</span></div>
+        <div><div style="font-size:12px;color:#64748b">Prezzo ${esc(c.nome.toLowerCase())} ${esc(c.prezzo_label)}</div>
+             <div style="font-size:26px;font-weight:800;color:#0f172a;line-height:1.1">${fmtIt(sg.prezzo, 2)}<span style="font-size:13px;font-weight:600;color:#475569"> ${esc(c.prezzo_udm)}</span></div>
              <div style="font-size:12px;color:#64748b">${sg.scost_breve_pct === null ? "" : `vs trend breve ${sg.scost_breve_pct >= 0 ? "+" : ""}${fmtIt(sg.scost_breve_pct, 1)}% · `}${sg.scost_medio_pct === null ? "" : `vs trend medio ${sg.scost_medio_pct >= 0 ? "+" : ""}${fmtIt(sg.scost_medio_pct, 1)}%`}</div></div>
       </div>
       <div style="font-size:14px;margin-top:10px"><b>${esc(NOME_SEGNALE[sg.codice] ?? sg.codice)}</b> — ${esc(sg.testo)}</div>
@@ -188,11 +229,11 @@ Deno.serve(async (req: Request) => {
   const data = url.searchParams.get("data") ?? ieriRoma();
 
   try {
+    const commodities = (await q("gas_commodity?attivo=eq.true&order=ordine&select=commodity,nome,icona,prezzo_codice,prezzo_label,prezzo_udm,prezzo_aggregazione")) as Commodity[];
+    const tutteVar = (await q("gas_variabili?order=commodity,ordine&select=commodity,variabile,etichetta,icona,udm,sorgente,commodity_dati,variabile_dati,metrica_dati,codice_indice")) as Variabile[];
     const regole = await q(
-      "gas_alert?attivo=eq.true&select=id,utente_id,grandezza,condizione,soglia,cooldown_gg," +
+      "gas_alert?attivo=eq.true&select=id,utente_id,commodity,grandezza,condizione,soglia,cooldown_gg," +
       "gas_utenti!inner(username,email,attivo)&gas_utenti.attivo=eq.true");
-    const valori = await valoriDelGiorno(data);
-    const sgGiorno = await segnaleDelGiorno(data);
 
     // anti-duplicato e cooldown
     const ids = regole.map((r) => r.id);
@@ -205,48 +246,64 @@ Deno.serve(async (req: Request) => {
 
     const scattati: Scattato[] = [];
     const saltati: string[] = [];
-    for (const r of regole) {
-      const val = valori[r.grandezza];
-      if (!val) { saltati.push(`#${r.id}: nessun dato per ${r.grandezza}`); continue; }
-      const soglia = Number(r.soglia);
-      const ok = r.grandezza === "segnale"
-        ? (r.condizione === "sopra" ? val.v >= soglia : val.v < soglia)   // livello: inclusivo
-        : (r.condizione === "sopra" ? val.v > soglia : val.v < soglia);
-      if (!ok) continue;
-      if (giaOggi.has(r.id)) { saltati.push(`#${r.id}: gia' inviato per ${data}`); continue; }
-      const ult = ultimoInvio.get(r.id);
-      if (ult) {
-        const gg = (Date.now() - new Date(ult).getTime()) / 86400000;
-        if (gg < Number(r.cooldown_gg)) { saltati.push(`#${r.id}: in cooldown (${gg.toFixed(1)} gg < ${r.cooldown_gg})`); continue; }
-      }
-      const u = r.gas_utenti;
-      if (!u?.email) { saltati.push(`#${r.id}: utente ${u?.username} senza email`); continue; }
-      scattati.push({
-        alert_id: r.id, utente_id: r.utente_id, username: u.username, email: u.email,
-        grandezza: r.grandezza, condizione: r.condizione, soglia, valore: val.v, data_dato: data,
-      });
-    }
-
-    // raggruppa per utente: UNA email con tutte le regole scattate
-    const perUtente = new Map<string, Scattato[]>();
-    for (const s of scattati) perUtente.set(s.email, [...(perUtente.get(s.email) ?? []), s]);
-
+    const valoriPer: Record<string, Record<string, { v: number; d: string }>> = {};
+    const segnalePer: Record<string, Segnale | null> = {};
     const esiti: Record<string, unknown>[] = [];
-    for (const [email, righe] of perUtente) {
-      const soggetto = `Gas Market Monitor — ${righe.length === 1 ? "soglia raggiunta" : `${righe.length} soglie raggiunte`} (${data.split("-").reverse().join("/")})`;
-      const html = htmlEmail(righe[0].username, righe, data, sgGiorno);
-      if (preview) {
-        esiti.push({ email, soggetto, regole: righe.map((s) => s.alert_id), html_len: html.length });
-        continue;
+
+    for (const c of commodities) {
+      const vars = tutteVar.filter((v) => v.commodity === c.commodity);
+      const G = grandezze(c, vars);
+      const regoleC = regole.filter((r) => (r.commodity ?? "gas") === c.commodity);
+      if (!regoleC.length) continue;
+      const valori = await valoriDelGiorno(c, vars, data);
+      const sgGiorno = await segnaleDelGiorno(c.commodity, data);
+      valoriPer[c.commodity] = valori;
+      segnalePer[c.commodity] = sgGiorno;
+
+      const scattatiC: Scattato[] = [];
+      for (const r of regoleC) {
+        const val = valori[r.grandezza];
+        if (!val) { saltati.push(`#${r.id}: nessun dato per ${r.grandezza} (${c.commodity})`); continue; }
+        const soglia = Number(r.soglia);
+        const ok = r.grandezza === "segnale"
+          ? (r.condizione === "sopra" ? val.v >= soglia : val.v < soglia)   // livello: inclusivo
+          : (r.condizione === "sopra" ? val.v > soglia : val.v < soglia);
+        if (!ok) continue;
+        if (giaOggi.has(r.id)) { saltati.push(`#${r.id}: gia' inviato per ${data}`); continue; }
+        const ult = ultimoInvio.get(r.id);
+        if (ult) {
+          const gg = (Date.now() - new Date(ult).getTime()) / 86400000;
+          if (gg < Number(r.cooldown_gg)) { saltati.push(`#${r.id}: in cooldown (${gg.toFixed(1)} gg < ${r.cooldown_gg})`); continue; }
+        }
+        const u = r.gas_utenti;
+        if (!u?.email) { saltati.push(`#${r.id}: utente ${u?.username} senza email`); continue; }
+        scattatiC.push({
+          alert_id: r.id, utente_id: r.utente_id, username: u.username, email: u.email,
+          commodity: c.commodity, grandezza: r.grandezza, condizione: r.condizione,
+          soglia, valore: val.v, data_dato: data,
+        });
       }
-      if (!BREVO_API_KEY) throw new Error("BREVO_API_KEY mancante");
-      await sendBrevo(email, soggetto, html);
-      await ins("gas_alert_inviati", righe.map((s) => ({ alert_id: s.alert_id, data_dato: s.data_dato, valore: s.valore })));
-      esiti.push({ email, soggetto, regole: righe.map((s) => s.alert_id), inviata: true });
+      scattati.push(...scattatiC);
+
+      // raggruppa per utente: UNA email per utente e commodity con tutte le regole scattate
+      const perUtente = new Map<string, Scattato[]>();
+      for (const s of scattatiC) perUtente.set(s.email, [...(perUtente.get(s.email) ?? []), s]);
+      for (const [email, righe] of perUtente) {
+        const soggetto = `${titolo(c)} — ${righe.length === 1 ? "soglia raggiunta" : `${righe.length} soglie raggiunte`} (${data.split("-").reverse().join("/")})`;
+        const html = htmlEmail(c, G, righe[0].username, righe, data, sgGiorno);
+        if (preview) {
+          esiti.push({ email, commodity: c.commodity, soggetto, regole: righe.map((s) => s.alert_id), html_len: html.length });
+          continue;
+        }
+        if (!BREVO_API_KEY) throw new Error("BREVO_API_KEY mancante");
+        await sendBrevo(email, soggetto, html);
+        await ins("gas_alert_inviati", righe.map((s) => ({ alert_id: s.alert_id, data_dato: s.data_dato, valore: s.valore })));
+        esiti.push({ email, commodity: c.commodity, soggetto, regole: righe.map((s) => s.alert_id), inviata: true });
+      }
     }
 
     return Response.json({ preview, data, regole_attive: regole.length, scattate: scattati.length,
-                           email: esiti, saltati, valori });
+                           email: esiti, saltati, valori: valoriPer });
   } catch (e) {
     return new Response(`errore alert: ${e}`, { status: 500 });
   }

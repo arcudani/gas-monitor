@@ -45,6 +45,21 @@ ricalcola il segnale e, se hai impostato soglie, ti manda un'email.
 > **retrospettivo**: dice che il prezzo è basso rispetto al passato recente. Non prevede il futuro:
 > la componente previsionale (forecast) è prevista in una fase successiva.
 
+### Due commodity, un solo monitor
+In alto nella barra laterale scegli **Gas** o **Energia elettrica**: tutte le pagine (Dashboard, Dettaglio,
+Alert, Export, Admin) si riferiscono alla commodity selezionata. Il motore del segnale è lo stesso; cambiano
+il **prezzo di riferimento** e le **variabili dello scenario**:
+
+| | Gas | Energia elettrica |
+|---|---|---|
+| Prezzo | **MGP-GAS** (GME), €/MWh | **PUN** (GME, media delle 24 ore), €/MWh |
+| Variabili dello scenario | stoccaggi · meteo · LNG · geopolitica | produzione zonale (7 zone) · meteo · prezzo gas · quota rinnovabili · geopolitica |
+| Meteo | più mite = favorevole | **vicino alla norma** = favorevole (caldo e freddo anomali alzano entrambi la domanda) |
+
+Per l'elettrico la produzione zonale e la quota rinnovabili arrivano da **ENTSO-E Transparency** (dati
+trasmessi da Terna): finché una serie non è ancora caricata conta come **neutra (50/100)** nello scenario e
+la Dashboard lo segnala. I pesi e le soglie dell'elettrico hanno una taratura propria (tab Admin).
+
 ### Le pagine
 - **Dashboard** — la situazione di oggi e lo storico.
 - **Dettaglio** — ogni variabile con il suo storico, il confronto pluriennale e il punteggio.

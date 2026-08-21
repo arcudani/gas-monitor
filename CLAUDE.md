@@ -106,7 +106,47 @@ nel `config` della spec — le locale Vega NON funzionano (Streamlit 1.61 filtra
 `usermeta.embedOptions` tenendo solo theme/renderer/padding, e `set_embed_options` non arriva
 al frontend). Mobile: `@media (max-width:760px)`.
 
-**Export** (`export.py`): funzioni pure → bytes (openpyxl, reportlab), testabili offline.
+**Export** (`export_docs.py` — rinominato da `export.py` il 21/08: lo stesso nome della pagina
+`moduli/export.py` creava un import circolare sotto AppTest): funzioni pure → bytes (openpyxl,
+reportlab), testabili offline; `contesto(info, variabili)` porta etichette/fonti per commodity.
+
+## Multi-commodity (g008, 21/08/2026): gas + energia elettrica nella STESSA app
+
+Decisione utente: un'unica app con **selettore Gas | Energia elettrica** in sidebar (`app.py` →
+`commodity.selettore()` → `st.session_state["commodity"]`). Tutto è **table-driven**:
+- `gas_commodity` (nome, icona, codice prezzo in `indici_mercato`, aggregazione `giorno`|`media_ore`)
+  e `gas_variabili` (per commodity: serie sorgente, riferimento `media5_doy`|`norma_doy`|`nessuno`,
+  trasformazione `delta`|`abs_delta`, orientamento ±1, testi, tolleranza freschezza).
+- `gas_pesi`, `gas_parametri_doc`, `gas_alert` hanno la colonna `commodity` (una storia di versioni
+  per commodity; PK doc = (commodity, chiave)).
+- Motore generico `gas_ricalcola_segnale(commodity, dal, al)`; `gas_ricalcola_segnale(dal, al)` e
+  `gas_freschezza()` restano come wrapper gas. **Invariante verificato con A/B** (vecchio g005 vs
+  nuovo sugli stessi dati: 0 righe diverse). ⚠️ Le CTE `val_doy/base5/exp5` sono `MATERIALIZED`
+  apposta: senza, il planner sceglie un nested loop e il ricalcolo passa da 3 a 25 s (oltre gli 8 s
+  di PostgREST usati dal run quotidiano).
+- `commodity.py` è l'unico punto d'accesso per i moduli (anagrafica in cache, `sql_valori`,
+  `sql_prezzo`, `sql_ultimi_valori`, `range_soglia`, `decimali`). Senza selettore (AppTest,
+  URL diretti) il default è `gas`: il comportamento storico è invariato. `test_commodity_ee.py`
+  copre l'EE.
+- **EE**: prezzo **PUN** (`PUN_INDEX_GME` orario, media delle 24 ore; storico 2020→ caricato il
+  21/08 con `App_Offerte/app/data_updater/backfill_pun.py`, `Granularita=h` su tutto il periodo —
+  il quartorario GME parte dal 01/10/2025 ma l'orario resta disponibile). Scenario a 5 variabili:
+  produzione zonale (7 zone, ENTSO-E — **in attesa del token** `ENTSOE_API_KEY`), meteo (stessa
+  serie del gas ma `abs_delta`: caldo e freddo anomali sono entrambi sfavorevoli), prezzo gas
+  (`sorgente='indice'` su MGP_GAS), quota rinnovabili (ENTSO-E), GPR. Le serie mai caricate
+  contano 50/100 e NON generano alert di freschezza finché non arriva il primo dato. Pesi EE
+  iniziali 30/15/25/15/15, **NON tarati**: serve il backtest sul PUN quando ci sarà la produzione.
+- Pipeline: `gas-monitor` v12 ricalcola anche l'EE e ne controlla la freschezza; `gas-monitor-alert`
+  v8 valuta le regole per commodity (una email per utente e commodity).
+
+## Nuove utenze
+
+`imposta_pwd.py Nome --ruolo admin|cliente` (interattivo, la password la digita
+l'utente/Daniele, mai in chat o nei log) + email di benvenuto dal template
+**`EMAIL_BENVENUTO.md`** (standard deciso 20/08/2026: bozza Gmail personale,
+**sempre cc energia@brosconsulenza.com**, password mai nell'email, paragrafo
+Admin solo per ruolo admin). Revoca: flag `attivo=false` in `gas_utenti`,
+non cancellare.
 
 ## Gotchas già pagati
 

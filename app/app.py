@@ -60,5 +60,11 @@ st.session_state["utente_autenticato"] = utente_autenticato
 if not _gia_autenticato:
     st.rerun()
 
+# Selettore commodity (Gas | Energia elettrica) in sidebar, sopra le pagine:
+# scrive st.session_state["commodity"], letto da tutti i moduli (g008).
+import commodity  # noqa: E402  (dopo il bridge dei segreti)
+with st.sidebar:
+    commodity.selettore()
+
 branding.render_header()
 pg.run()

@@ -11,7 +11,7 @@ import sys
 import pandas as pd
 
 import config  # noqa: F401
-import export
+import export_docs as export
 
 
 def _fixture():
