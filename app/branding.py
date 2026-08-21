@@ -450,7 +450,9 @@ def render_login_hero() -> None:
         f"style='width:min(120px, 32vw); height:auto; display:block; margin: 0 auto;'/>"
     ) if b64 else ""
     st.markdown(
-        "<style>.block-container{padding-top:.8rem !important}"
+        # 3.2rem: la barra di Streamlit (Cloud: Share/GitHub) e' un overlay di ~3rem,
+        # con meno il logo finisce tagliato sotto (visto il 21/08/2026)
+        "<style>.block-container{padding-top:3.2rem !important}"
         "[data-testid='stForm']{margin-top:.2rem !important; padding-top:1.1rem !important}</style>"
         f"{logo_html}"
         "<div style='text-align:center; margin-top:4px;'>"
