@@ -200,10 +200,11 @@ with tab_pipe:
 
     st.subheader("Freschezza delle serie")
     st.caption("Ogni mattina la pipeline verifica che ogni serie abbia un dato recente: oltre la tolleranza "
-               "(2 gg prezzo/segnale, 3 gg le altre fonti che pubblicano in ritardo) il run va in errore e "
-               "parte un'email di alert interna. Qui lo stato a colpo d'occhio.")
+               "(2 gg prezzo/segnale, 3 gg le altre fonti che pubblicano in ritardo, 7 gg il GPR che è "
+               "aggiornato a mano dagli autori) il run va in errore e parte UNA email di alert interna "
+               "al giorno. Qui lo stato a colpo d'occhio.")
     fr = db.query("SELECT serie, ultimo, giorni_fa FROM public.gas_freschezza() ORDER BY serie")
-    TOLL = {"prezzo MGP_GAS": 2, "segnale": 2}
+    TOLL = {"prezzo MGP_GAS": 2, "segnale": 2, "geopolitica gpr": 7}
     d0 = pd.DataFrame([{"Serie": se, "Ultimo giorno": ul, "Giorni fa": g,
                         "Stato": ("🟢 ok" if g is not None and int(g) <= TOLL.get(se, 3) else "🔴 in ritardo")}
                        for se, ul, g in fr])

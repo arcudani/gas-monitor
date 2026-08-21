@@ -247,6 +247,18 @@ async function giaOkOggi(dataRoma: string): Promise<boolean> {
   return ((await r.json()) as unknown[]).length > 0;
 }
 
+// Un run in errore c'e' gia' stato oggi? Serve a NON ripetere l'email di
+// alert interna a ogni tentativo del cron (21/08/2026: GPR stantio = 5
+// tentativi = 5 email): si avvisa solo al PRIMO errore del giorno, i
+// successivi restano comunque in task_runs.
+async function giaErroreOggi(dataRoma: string): Promise<boolean> {
+  const r = await sb(
+    `/rest/v1/task_runs?task_id=eq.gas-monitor&status=eq.error` +
+    `&started_at=gte.${dataRoma}T00:00:00%2B02:00&select=id&limit=1`,
+  );
+  return ((await r.json()) as unknown[]).length > 0;
+}
+
 function isoAddDays(iso: string, giorni: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + giorni);
@@ -332,9 +344,12 @@ Deno.serve(async (req: Request) => {
     // un dato recente; oltre la tolleranza il run e' errore anche se le
     // chiamate sono andate bene, e parte un'email interna di alert.
     // Tolleranze in giorni (le fonti pubblicano con 1-2 gg di ritardo fisiologico).
+    // GPR a 7: il file .xls e' aggiornato A MANO dagli autori e puo' saltare
+    // anche 4-6 giorni (fermo dal 17 al 21/08/2026); il motore fa fill-forward
+    // e la variabile pesa il 20%, quindi qualche giorno di ritardo non e' critico.
     const TOLLERANZA: Record<string, number> = {
       "prezzo MGP_GAS": 2, "segnale": 2, "meteo t_media_paniere": 3,
-      "stoccaggi riempimento_pct": 3, "lng lng_sendout": 3, "geopolitica gpr": 3,
+      "stoccaggi riempimento_pct": 3, "lng lng_sendout": 3, "geopolitica gpr": 7,
     };
     const stantii: string[] = [];
     try {
@@ -351,11 +366,14 @@ Deno.serve(async (req: Request) => {
 
     // task_runs ha un CHECK: gli esiti ammessi sono 'success' | 'error'
     const status = problemi.length ? "error" : "success";
+    // Prima di registrare il run: c'era GIA' un errore oggi? (per il dedup email)
+    const giaAvvisato = problemi.length ? await giaErroreOggi(oggiRoma) : false;
     await logRun(inizio, status, problemi.length ? problemi.join(" | ") : null);
 
     // Email interna di alert (energia@) se qualcosa non va: chi deve
     // intervenire lo sa subito, senza aprire l'app. Best-effort.
-    if (problemi.length) await alertInterno(problemi, dettagli);
+    // UNA sola email al giorno: solo al primo run in errore.
+    if (problemi.length && !giaAvvisato) await alertInterno(problemi, dettagli);
     return Response.json({ status, dettagli, problemi });
   } catch (e) {
     await logRun(inizio, "error", String(e).slice(0, 500));

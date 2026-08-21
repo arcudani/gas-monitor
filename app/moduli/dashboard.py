@@ -87,7 +87,8 @@ except Exception as e:
 df, cfg, var = dati["seg"], dati["cfg"], dati["var"]
 
 # ---- Stato dei dati: banner se qualche serie e' stantia o l'ultimo run e' fallito ----
-TOLL = {"prezzo MGP_GAS": 2, "segnale": 2}          # le altre fonti pubblicano con 1-2 gg di ritardo: 3
+TOLL = {"prezzo MGP_GAS": 2, "segnale": 2,          # le altre fonti pubblicano con 1-2 gg di ritardo: 3
+        "geopolitica gpr": 7}                       # il GPR e' aggiornato a mano dagli autori: puo' saltare giorni
 stantie = [f"{se} (ultimo {ul.strftime('%d/%m') if hasattr(ul, 'strftime') else ul}, {g} gg fa)"
            for se, ul, g in dati["fresh"] if g is not None and int(g) > TOLL.get(se, 3)]
 run = dati["run"]
