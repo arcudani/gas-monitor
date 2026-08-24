@@ -28,10 +28,10 @@ CHIAVE_STATO = "commodity"
 def lista() -> list[dict]:
     rows = db.query(
         "SELECT commodity, nome, icona, prezzo_codice, prezzo_label, prezzo_udm, "
-        "       prezzo_fonte, prezzo_aggregazione, prezzo_media_gg "
+        "       prezzo_fonte, prezzo_aggregazione, prezzo_media_gg, prezzo_vetrina "
         "FROM public.gas_commodity WHERE attivo ORDER BY ordine, commodity")
     cols = ["commodity", "nome", "icona", "prezzo_codice", "prezzo_label", "prezzo_udm",
-            "prezzo_fonte", "prezzo_aggregazione", "prezzo_media_gg"]
+            "prezzo_fonte", "prezzo_aggregazione", "prezzo_media_gg", "prezzo_vetrina"]
     return [dict(zip(cols, r)) for r in rows]
 
 
@@ -44,7 +44,7 @@ def info(code: str | None = None) -> dict:
     return {"commodity": "gas", "nome": "Gas", "icona": "🔥", "prezzo_codice": "MGP_GAS",
             "prezzo_label": "MGP-GAS", "prezzo_udm": "€/MWh",
             "prezzo_fonte": "GME — MGP-GAS", "prezzo_aggregazione": "giorno",
-            "prezzo_media_gg": 1}
+            "prezzo_media_gg": 1, "prezzo_vetrina": "giorno"}
 
 
 @st.cache_data(ttl=3600, show_spinner=False)

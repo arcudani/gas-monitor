@@ -169,6 +169,45 @@ pct1_txt = "n.d." if _p1 is None else (f"{_p1:.0f} %")
 pct1_lbl = (f"più alto del … degli ultimi {mf1} mesi" if _p1 is None else
             f"più alto del {_p1:.0f}% dei prezzi degli ultimi {mf1} mesi")
 
+# ---- Medie MENSILI (g011): il mese e' l'unita' che il cliente riconosce e paga
+# sui contratti indicizzati. Dentro un mese il PUN oscilla di 55-88 €/MWh, quindi
+# il singolo giorno dice poco. Il motore resta giornaliero: qui e' solo contesto.
+MESI_IT = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio",
+           "agosto", "settembre", "ottobre", "novembre", "dicembre"]
+_m = (df.set_index("Data")["Prezzo"].resample("MS").agg(["mean", "count"])
+      .rename(columns={"mean": "media", "count": "gg"}))
+_mese_cur = ult["Data"].to_period("M").to_timestamp()
+mese_med = float(_m.loc[_mese_cur, "media"]) if _mese_cur in _m.index else pz
+mese_gg = int(_m.loc[_mese_cur, "gg"]) if _mese_cur in _m.index else 0
+mese_tot = pd.Period(_mese_cur, freq="M").days_in_month
+mese_nome = MESI_IT[_mese_cur.month - 1]
+
+
+def _mese_prec(offset_mesi: int):
+    """Media di un mese precedente (1 = mese scorso, 12 = stesso mese anno scorso)."""
+    t = (_mese_cur - pd.DateOffset(months=offset_mesi)).to_period("M").to_timestamp()
+    if t in _m.index and int(_m.loc[t, "gg"]) >= 20:
+        return float(_m.loc[t, "media"]), f"{MESI_IT[t.month - 1]}" + (f" {t.year}" if offset_mesi >= 12 else "")
+    return None, None
+
+
+_m1, _m1_lbl = _mese_prec(1)
+_m12, _m12_lbl = _mese_prec(12)
+storia_mesi = " · ".join(
+    f"{lbl} <b>{_it(v, 2)}</b>" for v, lbl in ((_m1, _m1_lbl), (_m12, _m12_lbl)) if v is not None)
+
+# g011: cosa va in evidenza. 'mese' per l'elettrico (nessuno compra "il PUN di
+# lunedi'"), 'giorno' per il gas (MGP-GAS piu' stabile, fixing piu' tattico).
+vetrina = INFO.get("prezzo_vetrina") or "giorno"
+if vetrina == "mese":
+    val_grande, udm_grande = _it(mese_med, 2), f"{PZ_UDM} · {mese_nome}"
+    riga_sotto = (f"{mese_gg} giorni su {mese_tot} · giorno {ult['Data'].strftime('%d/%m')} "
+                  f"{_it(pz, 2)} {PZ_UDM}")
+else:
+    val_grande, udm_grande = _it(pz, 2), PZ_UDM
+    riga_sotto = (f"{branding.gm_delta(d_pz, d_dec, PZ_UDM)} {d_lbl} · "
+                  f"dato del {ult['Data'].strftime('%d/%m/%Y')}")
+
 
 def _mini_var(v: dict) -> str:
     """Cella della mini-griglia scenario: etichetta corta + punteggio + barra."""
@@ -200,11 +239,12 @@ st.markdown(
     f"<div><div class='gm-label'>Prezzo {INFO['nome'].lower()} {PZ_LBL}</div>"
     f"<div class='gm-panel'>"
     "<div class='gm-panel-top'>"
-    f"<div class='gm-value' style='color:{BLU}'>{_it(pz, 2)}<small>{PZ_UDM}</small></div>"
+    f"<div class='gm-value' style='color:{BLU}'>{val_grande}<small>{udm_grande}</small></div>"
     f"<div class='gm-tag'>{tag_rif}<b style='color:{BLU_SCURO if pz_ok else '#64748b'}'>{'in flessione' if pz_ok else 'non in flessione'}</b></div>"
     "</div>"
-    f"<div class='gm-sub'>{branding.gm_delta(d_pz, d_dec, PZ_UDM)} {d_lbl} · dato del {ult['Data'].strftime('%d/%m/%Y')}</div>"
-    "<div class='gm-mini gm-mini-ink'>"
+    f"<div class='gm-sub'>{riga_sotto}</div>"
+    + (f"<div class='gm-sub' style='margin-top:2px'>mesi precedenti: {storia_mesi}</div>" if storia_mesi else "")
+    + "<div class='gm-mini gm-mini-ink'>"
     f"<div>vs breve {gg_b} gg<b>{_pct(ult['ScB'])}</b></div>"
     f"<div>vs medio {gg_m} gg<b>{_pct(ult['ScM'])}</b></div>"
     f"<div>lungo {gg_l} gg<b>{dir_l}</b></div>"

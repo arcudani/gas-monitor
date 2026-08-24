@@ -227,6 +227,46 @@ st.markdown(branding.gm_legend([("solid", C_SERIE, scelta.split(" ", 1)[-1]), ("
 branding.altair_it(linea + rif_line, width="stretch")
 
 # =============================================================================
+# Medie MENSILI del prezzo (g011) — il mese e' l'unita' dei contratti
+# indicizzati: barre del periodo scelto e confronto con lo stesso mese
+# dell'anno precedente. Solo per il prezzo (le altre variabili non si fatturano).
+# =============================================================================
+if cfg["chiave"] == "prezzo":
+    MESI_IT = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"]
+    mens = (df.set_index("Data")["Valore"].resample("MS").agg(["mean", "count"])
+            .rename(columns={"mean": "Media", "count": "gg"}).reset_index())
+    mens = mens[mens["gg"] >= 20]                      # solo mesi completi
+    mens["Anno prec."] = mens["Media"].shift(12)
+    m_vis = mens[mens["Data"] >= inizio - pd.DateOffset(months=1)]
+    if len(m_vis) >= 2:
+        st.markdown("<div class='gm-section'><div style='font-size:1.7rem;font-weight:800;color:#C00000;"
+                    "letter-spacing:-.02em;line-height:1.1'>Medie mensili</div>"
+                    "<span>l'unità dei contratti indicizzati · confronto con l'anno precedente</span></div>",
+                    unsafe_allow_html=True)
+        m_vis = m_vis.assign(Mese=[f"{MESI_IT[d.month - 1]} {str(d.year)[2:]}" for d in m_vis["Data"]])
+        st.markdown(branding.gm_legend([("band", C_SERIE, "media del mese"),
+                                        ("dash", TEAL, "stesso mese anno precedente")]),
+                    unsafe_allow_html=True)
+        barre = alt.Chart(m_vis).mark_bar(color=C_SERIE, opacity=0.85, cornerRadiusTopLeft=3,
+                                          cornerRadiusTopRight=3).encode(
+            x=alt.X("Mese:N", title="", sort=None),
+            y=alt.Y("Media:Q", title=udm_vis),
+            tooltip=[alt.Tooltip("Mese:N", title="mese"),
+                     alt.Tooltip("Media:Q", format=".2f", title=f"media {udm_vis}"),
+                     alt.Tooltip("Anno prec.:Q", format=".2f", title="anno precedente")],
+        )
+        prec_pt = alt.Chart(m_vis.dropna(subset=["Anno prec."])).mark_tick(
+            color=TEAL, thickness=2.5, size=26).encode(
+            x=alt.X("Mese:N", sort=None), y=alt.Y("Anno prec.:Q"))
+        branding.altair_it(barre + prec_pt, width="stretch")
+        _u = mens.iloc[-1]
+        if pd.notna(_u["Anno prec."]):
+            _var = (_u["Media"] / _u["Anno prec."] - 1) * 100
+            st.caption(f"Ultimo mese completo: **{_fmt(_u['Media'], 2)} {udm_vis}**, "
+                       f"{'+' if _var >= 0 else '−'}{_fmt(abs(_var), 1)} % rispetto allo stesso mese "
+                       f"dell'anno precedente ({_fmt(_u['Anno prec.'], 2)} {udm_vis}).")
+
+# =============================================================================
 # Punteggio nel tempo (percentile che entra nello scenario)
 # =============================================================================
 if not df_p.empty and cfg["chiave"] != "prezzo":

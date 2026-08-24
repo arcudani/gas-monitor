@@ -56,6 +56,7 @@ il **prezzo di riferimento** e le **variabili dello scenario**:
 | Variabili dello scenario | stoccaggi · meteo · LNG · geopolitica | produzione zonale (7 zone) · meteo · prezzo gas · quota rinnovabili · geopolitica |
 | Meteo | più mite = favorevole | **vicino alla norma** = favorevole (caldo e freddo anomali alzano entrambi la domanda) |
 | Condizione prezzo | sul prezzo del giorno | sulla **media 7 giorni** (il PUN ha un forte ciclo settimanale) |
+| Numero in evidenza | prezzo del **giorno** | media del **mese in corso** (è l'unità dei contratti indicizzati) |
 
 Per l'elettrico la produzione zonale e la quota rinnovabili arrivano da **ENTSO-E Transparency** (dati
 trasmessi da Terna): finché una serie non è ancora caricata conta come **neutra (50/100)** nello scenario e
@@ -247,6 +248,17 @@ storico — **rivede gli ultimi giorni**. Ogni numero mostrato è quindi il **mi
 momento**: meglio un valore provvisorio subito che un buco. Due conseguenze pratiche: la variazione
 "vs ieri" confronta con il valore di ieri *rivisto* (non con quello che vedevi a schermo ieri), e le regole
 del segnale usano la **media a 7 giorni**, che assorbe anche queste revisioni.
+
+**Perché per l'elettrico il numero grande è il mese e non il giorno?**
+Perché il mese è l'unità che il cliente riconosce e paga: sui contratti indicizzati si fattura la **media
+mensile del PUN**, non il valore di un singolo giorno. E il singolo giorno dice poco: dentro un mese il PUN
+oscilla di 55–88 €/MWh (a luglio 2026 da 98,71 a 186,23, con media 157,04). Il pannello mostra quindi la
+**media del mese in corso** (con quanti giorni sono già trascorsi), e sotto il prezzo del giorno, la media a
+7 giorni e i due mesi di confronto — quello precedente e lo stesso mese dell'anno scorso. In *Dettaglio* c'è
+il grafico a barre delle medie mensili con il confronto anno su anno. **Il segnale continua a lavorare sui
+dati giornalieri**: il valore mensile è definitivo solo a mese chiuso, mentre le finestre favorevoli durano
+in media una settimana e vanno colte quando si aprono. Per il gas resta in evidenza il prezzo del giorno:
+l'MGP-GAS è più stabile e il fixing è più tattico.
 
 **Energia elettrica: il PUN di domenica è crollato di 30 €/MWh, è un errore?**
 No, ed è il motivo per cui l'elettrico ragiona sulla **media 7 giorni**. Il PUN ha un ciclo settimanale molto

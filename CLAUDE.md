@@ -151,6 +151,13 @@ resta fuori); per lo scenario non conta, il punteggio è un **percentile** sulla
 ⚠️ Il **2015 ha copertura incompleta** (222 TWh contro 250 del 2016, +12% non reale): la serie
 parte dal 2016.
 
+**Prezzo in vetrina (g011, 24/08/2026)** — `gas_commodity.prezzo_vetrina`: `giorno` (gas) o `mese`
+(EE, media del mese IN CORSO come numero grande). Motivo: dentro un mese il PUN oscilla di 55–88
+€/MWh e il mese è l'unità dei contratti indicizzati; il **motore resta giornaliero** perché il
+mensile è definitivo solo a mese chiuso e darebbe ~80 punti dal 2020 invece di 2.400. Dashboard:
+riga "mesi precedenti" (mese scorso + stesso mese anno prima) per entrambe le commodity; Dettaglio:
+barre delle medie mensili del prezzo con confronto anno su anno (solo mesi con ≥20 giorni).
+
 **Ciclo settimanale, parte 2 (g010, 24/08/2026)** — lo stesso problema del prezzo si presenta sulle
 VARIABILI elettriche: la domenica si produce meno (meno domanda) e la quota rinnovabile sale per
 costruzione. Punteggi medi mer→dom PRIMA: produzione 70,0→13,0, rinnovabili 44,2→77,5, **scenario
