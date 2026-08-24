@@ -253,9 +253,11 @@ No, ed è il motivo per cui l'elettrico ragiona sulla **media 7 giorni**. Il PUN
 marcato: negli ultimi 90 giorni i feriali valgono 156–161 €/MWh, il **sabato −12%** e la **domenica −20%**.
 Nelle domeniche estive le ore centrali arrivano a pochi euro per il fotovoltaico (il 23/08/2026: 8,75 €/MWh
 alle 14, con la media del giorno a 128,42 contro i 160,56 del sabato). Il numero grande in Dashboard resta il
-**PUN reale del giorno** — è il prezzo di mercato e va visto — ma **scostamenti dai trend e percentile sono
-calcolati sulla media a 7 giorni**, che contiene sempre cinque feriali più sabato e domenica: così il fine
-settimana non viene scambiato per una flessione del mercato. Il gas non ne ha bisogno: l'MGP-GAS quota tutti
+**PUN reale del giorno** — è il prezzo di mercato e va visto — ma **variazione, scostamenti dai trend e
+percentile sono calcolati sulla media a 7 giorni**, che contiene sempre cinque feriali più sabato e domenica:
+così il fine settimana non viene scambiato per una flessione del mercato. Per lo stesso motivo la riga sotto
+il prezzo non dice più "vs ieri" ma "sulla media 7 gg": confrontare il lunedì con la domenica dava +64 €/MWh,
+cioè solo il rimbalzo del fine settimana (sulla media, la stessa giornata vale +1,9). Il gas non ne ha bisogno: l'MGP-GAS quota tutti
 i giorni senza un ciclo settimanale marcato, e infatti lì la condizione lavora sul prezzo del giorno.
 
 **Cosa significa "sui 6 mesi: più alto del 96%"?**

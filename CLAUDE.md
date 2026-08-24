@@ -136,8 +136,28 @@ Decisione utente: un'unica app con **selettore Gas | Energia elettrica** in side
   (`sorgente='indice'` su MGP_GAS), quota rinnovabili (ENTSO-E), GPR. Le serie mai caricate
   contano 50/100 e NON generano alert di freschezza finché non arriva il primo dato. Pesi EE
   iniziali 30/15/25/15/15, **NON tarati**: serve il backtest sul PUN quando ci sarà la produzione.
-- Pipeline: `gas-monitor` v12 ricalcola anche l'EE e ne controlla la freschezza; `gas-monitor-alert`
-  v8 valuta le regole per commodity (una email per utente e commodity).
+- Pipeline: `gas-monitor` (v15) ricalcola anche l'EE, ne controlla la freschezza e delega a
+  **`gas-monitor-entsoe`** produzione e rinnovabili; `gas-monitor-alert` valuta le regole per
+  commodity (una email per utente e commodity).
+
+**ENTSO-E (token dal 24/08/2026, secret `ENTSOE_API_KEY`)** — funzione dedicata `gas-monitor-entsoe`:
+documentType **A75** (actual generation per type), processType A16, dominio `10YIT-GRTN-----B`
+(Italia aggregata). Scrive `produzione_tot` (GWh/g) e `quota_pct` (solare B16 + eolico B18/B19).
+⚠️ **Chunk MENSILI**: un anno intero per invocazione va in `WORKER_RESOURCE_LIMIT` (XML enorme).
+I punti sono UTC → si aggregano per giorno **Europe/Rome** (verifica: il 15/08 risulta il minimo
+della settimana, come dev'essere). Coerenza con Terna: i totali annui sono ~92% della produzione
+netta ufficiale — atteso, ENTSO-E copre solo gli impianti sopra soglia (il fotovoltaico distribuito
+resta fuori); per lo scenario non conta, il punteggio è un **percentile** sulla stessa serie.
+⚠️ Il **2015 ha copertura incompleta** (222 TWh contro 250 del 2016, +12% non reale): la serie
+parte dal 2016.
+
+**Ciclo settimanale del PUN (g009, 24/08/2026)** — il PUN vale in media **−12% il sabato e −20% la
+domenica** rispetto ai feriali (nelle domeniche estive le ore centrali scendono a pochi €/MWh per il
+fotovoltaico). Senza correzione il segnale scambiava ogni weekend per una flessione di mercato.
+Perciò la **condizione** prezzo (tre trend, scostamenti, percentili) si calcola sulla **media mobile**
+di `gas_commodity.prezzo_media_gg` giorni — **gas 1** (invariato, A/B verificato), **EE 7** — mentre
+il prezzo **mostrato** resta quello del giorno; la media usata è in `gas_segnale.prezzo_riferimento`.
+NON togliere la media dall'EE senza rifare il backtest.
 
 ## Nuove utenze
 

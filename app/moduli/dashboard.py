@@ -155,6 +155,15 @@ dir_l = "n.d." if pend is None else ("in salita" if pend > 0.05 else "in discesa
 pz_media_gg = int(INFO.get("prezzo_media_gg") or 1)
 pz_rif = float(ult["PrezzoRif"]) if pd.notna(ult.get("PrezzoRif")) else pz
 tag_rif = (f"media {pz_media_gg} gg <b>{_it(pz_rif, 2)}</b> · " if pz_media_gg > 1 else "vs trend · ")
+# Variazione: per il gas "vs ieri" sul prezzo del giorno. Per l'elettrico NO —
+# confrontare un lunedi' con una domenica dava +64 €/MWh, che e' solo il rimbalzo
+# del weekend (segnalato dal committente 24/08/2026): si mostra la variazione
+# della MEDIA, che e' il valore su cui lavorano le condizioni.
+if pz_media_gg > 1:
+    _rif_prec = float(prec["PrezzoRif"]) if pd.notna(prec.get("PrezzoRif")) else pz_rif
+    d_pz, d_dec, d_lbl = pz_rif - _rif_prec, 2, f"sulla media {pz_media_gg} gg vs ieri"
+else:
+    d_dec, d_lbl = 2, "vs ieri"
 _p1 = None if pd.isna(ult["Pct1"]) else float(ult["Pct1"])
 pct1_txt = "n.d." if _p1 is None else (f"{_p1:.0f} %")
 pct1_lbl = (f"più alto del … degli ultimi {mf1} mesi" if _p1 is None else
@@ -194,7 +203,7 @@ st.markdown(
     f"<div class='gm-value' style='color:{BLU}'>{_it(pz, 2)}<small>{PZ_UDM}</small></div>"
     f"<div class='gm-tag'>{tag_rif}<b style='color:{BLU_SCURO if pz_ok else '#64748b'}'>{'in flessione' if pz_ok else 'non in flessione'}</b></div>"
     "</div>"
-    f"<div class='gm-sub'>{branding.gm_delta(d_pz, 2, PZ_UDM)} vs ieri · dato del {ult['Data'].strftime('%d/%m/%Y')}</div>"
+    f"<div class='gm-sub'>{branding.gm_delta(d_pz, d_dec, PZ_UDM)} {d_lbl} · dato del {ult['Data'].strftime('%d/%m/%Y')}</div>"
     "<div class='gm-mini gm-mini-ink'>"
     f"<div>vs breve {gg_b} gg<b>{_pct(ult['ScB'])}</b></div>"
     f"<div>vs medio {gg_m} gg<b>{_pct(ult['ScM'])}</b></div>"
@@ -205,10 +214,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 if pz_media_gg > 1:
-    st.caption(f"ℹ️ Il numero grande è il prezzo **del giorno**; gli scostamenti dai trend e il percentile "
-               f"sono calcolati sulla **media {pz_media_gg} giorni** ({_it(pz_rif, 2)} {PZ_UDM}), perché il "
+    st.caption(f"ℹ️ Il numero grande è il prezzo **del giorno**; la variazione, gli scostamenti dai trend e il "
+               f"percentile sono calcolati sulla **media {pz_media_gg} giorni** ({_it(pz_rif, 2)} {PZ_UDM}), perché il "
                f"{PZ_LBL} ha un forte ciclo settimanale: il sabato vale circa −12% e la domenica −20% "
-               "rispetto ai feriali, e senza media ogni fine settimana sembrerebbe una flessione del mercato.")
+               "rispetto ai feriali. Confrontare due giorni consecutivi misurerebbe il fine settimana, non il mercato.")
 if senza_dati:
     st.caption("ℹ️ In attesa dei primi dati per: " + ", ".join(v["etichetta"] for v in senza_dati)
                + " — nel frattempo contano come neutre (50/100) nello scenario.")
