@@ -151,6 +151,15 @@ resta fuori); per lo scenario non conta, il punteggio è un **percentile** sulla
 ⚠️ Il **2015 ha copertura incompleta** (222 TWh contro 250 del 2016, +12% non reale): la serie
 parte dal 2016.
 
+**Ciclo settimanale, parte 2 (g010, 24/08/2026)** — lo stesso problema del prezzo si presenta sulle
+VARIABILI elettriche: la domenica si produce meno (meno domanda) e la quota rinnovabile sale per
+costruzione. Punteggi medi mer→dom PRIMA: produzione 70,0→13,0, rinnovabili 44,2→77,5, **scenario
+50,1→41,5**. Fix: `gas_variabili.media_gg` (1 = valore del giorno, 7 = media settimanale) messo a 7
+su `produzione` e `rinnovabili` dell'EE; la media si applica PRIMA di riferimento e percentile.
+Dopo: produzione 52,1–53,1, rinnovabili 61,4–63,5. A/B gas: **0 differenze**. Il frame di una window
+function dev'essere costante → la media a 7 gg si calcola sempre e si sceglie con un CASE
+(`media_gg` ammette solo 1 o 7).
+
 **Ciclo settimanale del PUN (g009, 24/08/2026)** — il PUN vale in media **−12% il sabato e −20% la
 domenica** rispetto ai feriali (nelle domeniche estive le ore centrali scendono a pochi €/MWh per il
 fotovoltaico). Senza correzione il segnale scambiava ogni weekend per una flessione di mercato.
