@@ -6,8 +6,12 @@
 //  - STOCCAGGI: GIE AGSI+ (IT): % riempimento, iniezione, erogazione
 //  - LNG: GIE ALSI (IT): send-out e giacenza
 //  - GEOPOLITICA: GPR daily Caldara-Iacoviello (file .xls, storico completo)
-//  - PREZZO: gia' in indici_mercato (MGP_GAS, job dati-mercato) — non toccato
-//  - INDICE + SEGNALE: RPC gas_ricalcola_indice + gas_ricalcola_segnale (v1.6)
+//  - PRODUZIONE EE + RINNOVABILI: ENTSO-E Transparency (delegato a
+//    gas-monitor-entsoe), per la commodity 'ee'
+//  - PREZZO: gia' in indici_mercato (MGP_GAS e PUN_INDEX_GME, job
+//    dati-mercato di App_Offerte) — non toccato
+//  - INDICE + SEGNALE: RPC gas_ricalcola_indice + gas_ricalcola_segnale
+//    (gas e, dal 21/08/2026, anche 'ee')
 //
 // Scheduling: pg_cron ogni 30' 04:00-07:30 UTC; gate interno Europe/Rome
 // 06:30-09:30 + skip se gia' 'ok' oggi -> una sola esecuzione buona al
@@ -20,6 +24,7 @@
 //   ?backfill=stoccaggi&dal=&al=   backfill AGSI+
 //   ?backfill=lng&dal=&al=         backfill ALSI
 //   ?backfill=geopolitica&dal=&al= backfill GPR daily
+//   ?backfill=produzione&dal=&al=  backfill ENTSO-E (produzione + rinnovabili)
 //   ?ricalcola=1&dal=&al=          solo ricalcolo indice
 //
 // Deploy: MCP deploy_edge_function — SEMPRE get_edge_function e confronto
@@ -152,6 +157,17 @@ async function fetchGie(api: "agsi" | "alsi", dal: string, al: string): Promise<
     pagina++;
   }
   return righe;
+}
+
+async function delegaEntsoe(dal: string, al: string): Promise<number> {
+  // Produzione elettrica e quota rinnovabili (commodity 'ee'): funzione
+  // dedicata come il GPR, il parsing XML e' pesante (token ENTSO-E 21/08/2026).
+  const r = await fetch(
+    `${SB_URL}/functions/v1/gas-monitor-entsoe?dal=${dal}&al=${al}`,
+    { headers: { Authorization: `Bearer ${SB_KEY}`, apikey: SB_KEY } },
+  );
+  if (!r.ok) throw new Error(`ENTSO-E: ${r.status} ${(await r.text()).slice(0, 200)}`);
+  return Number(((await r.json()) as { righe: number }).righe);
 }
 
 async function delegaGpr(dal: string, al: string): Promise<number> {
@@ -287,6 +303,9 @@ Deno.serve(async (req: Request) => {
       else if (backfill === "geopolitica") {
         return Response.json({ backfill, dal, al, righe: await delegaGpr(dal, al) });
       }
+      else if (backfill === "produzione") {
+        return Response.json({ backfill, dal, al, righe: await delegaEntsoe(dal, al) });
+      }
       else return new Response(`backfill sconosciuto: ${backfill}`, { status: 400 });
       const n = await upsertSerie(righe);
       return Response.json({ backfill, dal, al, righe: n });
@@ -318,6 +337,7 @@ Deno.serve(async (req: Request) => {
       ["stoccaggi", async () => upsertSerie(await fetchGie("agsi", dal, ieri))],
       ["lng", async () => upsertSerie(await fetchGie("alsi", dal, ieri))],
       ["geopolitica", () => delegaGpr(dal, ieri)],
+      ["produzione_ee", () => delegaEntsoe(dal, ieri)],
     ];
     for (const [nome, fn] of sorgenti) {
       try {

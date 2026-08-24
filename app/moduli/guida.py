@@ -55,6 +55,7 @@ il **prezzo di riferimento** e le **variabili dello scenario**:
 | Prezzo | **MGP-GAS** (GME), €/MWh | **PUN** (GME, media delle 24 ore), €/MWh |
 | Variabili dello scenario | stoccaggi · meteo · LNG · geopolitica | produzione zonale (7 zone) · meteo · prezzo gas · quota rinnovabili · geopolitica |
 | Meteo | più mite = favorevole | **vicino alla norma** = favorevole (caldo e freddo anomali alzano entrambi la domanda) |
+| Condizione prezzo | sul prezzo del giorno | sulla **media 7 giorni** (il PUN ha un forte ciclo settimanale) |
 
 Per l'elettrico la produzione zonale e la quota rinnovabili arrivano da **ENTSO-E Transparency** (dati
 trasmessi da Terna): finché una serie non è ancora caricata conta come **neutra (50/100)** nello scenario e
@@ -246,6 +247,16 @@ storico — **rivede gli ultimi giorni**. Ogni numero mostrato è quindi il **mi
 momento**: meglio un valore provvisorio subito che un buco. Due conseguenze pratiche: la variazione
 "vs ieri" confronta con il valore di ieri *rivisto* (non con quello che vedevi a schermo ieri), e le regole
 del segnale usano la **media a 7 giorni**, che assorbe anche queste revisioni.
+
+**Energia elettrica: il PUN di domenica è crollato di 30 €/MWh, è un errore?**
+No, ed è il motivo per cui l'elettrico ragiona sulla **media 7 giorni**. Il PUN ha un ciclo settimanale molto
+marcato: negli ultimi 90 giorni i feriali valgono 156–161 €/MWh, il **sabato −12%** e la **domenica −20%**.
+Nelle domeniche estive le ore centrali arrivano a pochi euro per il fotovoltaico (il 23/08/2026: 8,75 €/MWh
+alle 14, con la media del giorno a 128,42 contro i 160,56 del sabato). Il numero grande in Dashboard resta il
+**PUN reale del giorno** — è il prezzo di mercato e va visto — ma **scostamenti dai trend e percentile sono
+calcolati sulla media a 7 giorni**, che contiene sempre cinque feriali più sabato e domenica: così il fine
+settimana non viene scambiato per una flessione del mercato. Il gas non ne ha bisogno: l'MGP-GAS quota tutti
+i giorni senza un ciclo settimanale marcato, e infatti lì la condizione lavora sul prezzo del giorno.
 
 **Cosa significa "sui 6 mesi: più alto del 96%"?**
 Che il prezzo di oggi è **più alto del 96% dei prezzi degli ultimi sei mesi** — cioè siamo vicini ai massimi del

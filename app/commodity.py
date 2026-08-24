@@ -28,10 +28,10 @@ CHIAVE_STATO = "commodity"
 def lista() -> list[dict]:
     rows = db.query(
         "SELECT commodity, nome, icona, prezzo_codice, prezzo_label, prezzo_udm, "
-        "       prezzo_fonte, prezzo_aggregazione "
+        "       prezzo_fonte, prezzo_aggregazione, prezzo_media_gg "
         "FROM public.gas_commodity WHERE attivo ORDER BY ordine, commodity")
     cols = ["commodity", "nome", "icona", "prezzo_codice", "prezzo_label", "prezzo_udm",
-            "prezzo_fonte", "prezzo_aggregazione"]
+            "prezzo_fonte", "prezzo_aggregazione", "prezzo_media_gg"]
     return [dict(zip(cols, r)) for r in rows]
 
 
@@ -43,7 +43,8 @@ def info(code: str | None = None) -> dict:
     # fallback difensivo (anagrafica non ancora migrata): il gas storico
     return {"commodity": "gas", "nome": "Gas", "icona": "🔥", "prezzo_codice": "MGP_GAS",
             "prezzo_label": "MGP-GAS", "prezzo_udm": "€/MWh",
-            "prezzo_fonte": "GME — MGP-GAS", "prezzo_aggregazione": "giorno"}
+            "prezzo_fonte": "GME — MGP-GAS", "prezzo_aggregazione": "giorno",
+            "prezzo_media_gg": 1}
 
 
 @st.cache_data(ttl=3600, show_spinner=False)

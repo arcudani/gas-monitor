@@ -58,18 +58,18 @@ def _carica(com: str) -> dict:
         "SELECT data, scenario, scenario_medio, punteggi, prezzo, trend_breve, trend_medio, "
         "       trend_lungo, scost_breve_pct, scost_medio_pct, pendenza_lungo_pct, "
         "       pct_finestra1, pct_finestra2, prezzo_favorevole, favorevole, "
-        "       giorni_consecutivi, codice, testo "
+        "       giorni_consecutivi, codice, testo, prezzo_riferimento "
         "FROM public.gas_segnale WHERE commodity = %s ORDER BY data", (com,))
     cfg = db.query("SELECT pesi FROM public.gas_pesi WHERE commodity = %s "
                    "ORDER BY versione DESC LIMIT 1", (com,))
     var = db.query(*commodity.sql_ultimi_valori(com))
     df = pd.DataFrame(seg, columns=[
         "Data", "Scenario", "ScenarioM", "Punteggi", "Prezzo", "TBreve", "TMedio", "TLungo",
-        "ScB", "ScM", "PendL", "Pct1", "Pct2", "PzOk", "Fav", "N", "Codice", "Testo"])
+        "ScB", "ScM", "PendL", "Pct1", "Pct2", "PzOk", "Fav", "N", "Codice", "Testo", "PrezzoRif"])
     if not df.empty:
         df["Data"] = pd.to_datetime(df["Data"])
         for c in ("Scenario", "ScenarioM", "Prezzo", "TBreve", "TMedio", "TLungo",
-                  "ScB", "ScM", "PendL", "Pct1", "Pct2"):
+                  "ScB", "ScM", "PendL", "Pct1", "Pct2", "PrezzoRif"):
             df[c] = pd.to_numeric(df[c], errors="coerce")
     fresh = db.query("SELECT serie, ultimo, giorni_fa, tolleranza FROM public.gas_freschezza(%s) "
                      "ORDER BY serie", (com,))
@@ -148,6 +148,13 @@ pz_ok = bool(ult["PzOk"])
 pend = float(ult["PendL"]) if pd.notna(ult["PendL"]) else None
 dir_l = "n.d." if pend is None else ("in salita" if pend > 0.05 else "in discesa" if pend < -0.05 else "piatto")
 # percentile 6 mesi: "piu' alto del X% dei prezzi"; sotto il 5% = tra i piu' bassi (minimo di periodo)
+# Prezzo di RIFERIMENTO delle condizioni (g009): media mobile di N giorni.
+# Per il gas N=1 (= prezzo del giorno, niente da mostrare); per l'elettrico N=7,
+# perche' il PUN ha un forte ciclo settimanale (la domenica vale circa -20% e
+# senza media il segnale la scambiava per una flessione di mercato).
+pz_media_gg = int(INFO.get("prezzo_media_gg") or 1)
+pz_rif = float(ult["PrezzoRif"]) if pd.notna(ult.get("PrezzoRif")) else pz
+tag_rif = (f"media {pz_media_gg} gg <b>{_it(pz_rif, 2)}</b> · " if pz_media_gg > 1 else "vs trend · ")
 _p1 = None if pd.isna(ult["Pct1"]) else float(ult["Pct1"])
 pct1_txt = "n.d." if _p1 is None else (f"{_p1:.0f} %")
 pct1_lbl = (f"più alto del … degli ultimi {mf1} mesi" if _p1 is None else
@@ -185,7 +192,7 @@ st.markdown(
     f"<div class='gm-panel'>"
     "<div class='gm-panel-top'>"
     f"<div class='gm-value' style='color:{BLU}'>{_it(pz, 2)}<small>{PZ_UDM}</small></div>"
-    f"<div class='gm-tag'>vs trend · <b style='color:{BLU_SCURO if pz_ok else '#64748b'}'>{'in flessione' if pz_ok else 'non in flessione'}</b></div>"
+    f"<div class='gm-tag'>{tag_rif}<b style='color:{BLU_SCURO if pz_ok else '#64748b'}'>{'in flessione' if pz_ok else 'non in flessione'}</b></div>"
     "</div>"
     f"<div class='gm-sub'>{branding.gm_delta(d_pz, 2, PZ_UDM)} vs ieri · dato del {ult['Data'].strftime('%d/%m/%Y')}</div>"
     "<div class='gm-mini gm-mini-ink'>"
@@ -197,6 +204,11 @@ st.markdown(
     "</div>",
     unsafe_allow_html=True,
 )
+if pz_media_gg > 1:
+    st.caption(f"ℹ️ Il numero grande è il prezzo **del giorno**; gli scostamenti dai trend e il percentile "
+               f"sono calcolati sulla **media {pz_media_gg} giorni** ({_it(pz_rif, 2)} {PZ_UDM}), perché il "
+               f"{PZ_LBL} ha un forte ciclo settimanale: il sabato vale circa −12% e la domenica −20% "
+               "rispetto ai feriali, e senza media ogni fine settimana sembrerebbe una flessione del mercato.")
 if senza_dati:
     st.caption("ℹ️ In attesa dei primi dati per: " + ", ".join(v["etichetta"] for v in senza_dati)
                + " — nel frattempo contano come neutre (50/100) nello scenario.")
