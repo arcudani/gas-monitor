@@ -310,8 +310,11 @@ BROS_CSS = """
     .gm-grid.gm-2 > div { display:flex; flex-direction:column; }
     .gm-grid.gm-2 > div > .gm-panel { flex:1; }
     .gm-panel .gm-value { font-size:3.4rem; }
-    .gm-panel-top { display:flex; justify-content:flex-start; align-items:flex-start; gap:16px; }
-    .gm-tag { font-size:.74rem; color:var(--slate-500); text-align:left; line-height:1.35; white-space:nowrap;
+    /* pillola a destra ma SEMPRE dentro il box: margin-left:auto la spinge al
+       bordo, flex-wrap la manda a capo (restando a destra) quando non c'e' spazio
+       — con space-between + nowrap sbordava oltre la card (visto sull'EE, 25/08) */
+    .gm-panel-top { display:flex; flex-wrap:wrap; align-items:flex-start; gap:8px 12px; }
+    .gm-tag { margin-left:auto; font-size:.74rem; color:var(--slate-500); text-align:right; line-height:1.35; white-space:nowrap;
               background:var(--slate-50); border:1px solid var(--slate-200); border-radius:999px; padding:4px 10px; margin-top:4px; }
     .gm-tag b { color:var(--slate-800); font-weight:700; }
     .gm-mini { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:12px 14px; margin-top:auto; padding-top:18px; align-items:end; }
