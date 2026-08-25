@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Cos'è
 
 **Energy Market Monitor** (nome unico dal 21/08/2026; ex "Gas Market Monitor", identificatori tecnici `gas_*`/`gas-monitor` invariati) — terza app Streamlit di Bros Consulenza (dopo `C:\Code\App_Offerte` e
-`C:\Code\Bros_ERP`): individua le **finestre favorevoli al fixing del gas** per clienti con contratti
-annuali. Tutto in italiano (UI, commenti, testi). Requisiti e storia delle decisioni:
-`G:\Il mio Drive\Code\App_Offerte\REQUISITI_Gas_Market_Monitor.md` (v1.8) — leggere la sezione
+`C:\Code\Bros_ERP`): individua le **finestre favorevoli al fixing di gas ed energia elettrica** per clienti con
+contratti annuali (selettore commodity in sidebar). Tutto in italiano (UI, commenti, testi). Requisiti e storia delle decisioni:
+`G:\Il mio Drive\Code\App_Offerte\REQUISITI_Gas_Market_Monitor.md` (v1.9) — leggere la sezione
 "Indice sintetico → Scenario + Prezzo + Segnale" prima di toccare il motore.
 
 Stato: **in produzione** (20/08/2026). Repo **pubblico** `arcudani/gas-monitor` (pubblico perché
@@ -24,7 +24,7 @@ venv: `C:\Code\Gas_Monitor\app\.venv\Scripts\python.exe` (Python 3.12). Su Windo
 
 ```bash
 python -m streamlit run app.py --server.port 8532     # avvio (NON streamlit.exe)
-python run_tests.py                                   # tutta la suite (6 file, ~3 min)
+python run_tests.py                                   # tutta la suite (7 file, ~4 min)
 python test_dashboard.py                              # un file (ognuno è standalone, exit 0/1)
 python imposta_pwd.py Nome --ruolo admin|cliente      # crea utente / password (interattivo)
 python -m py_compile moduli/dashboard.py              # check veloce prima dei test
@@ -76,7 +76,9 @@ una riga/giorno), `gas_indice` (indice storico, solo confronto), `gas_alert/_inv
 `apply_migration` o psycopg diretto; alcune funzioni sono state ri-create sul DB con delta —
 in caso di dubbio confrontare `pg_get_functiondef` con il file.
 
-**Il motore (`gas_ricalcola_segnale`, in g005)** — capire questo prima di tutto:
+**Il motore (`gas_ricalcola_segnale`)** — capire questo prima di tutto. La versione CORRENTE della
+funzione è in **g013** (evoluzione g005 → g008 generico → g009/g010 medie mobili → g013 performance);
+i concetti qui sotto valgono per entrambe le commodity, con i valori del gas come esempio:
 - **Scenario 0–100** = media ponderata di 4 percentili (2020–oggi) orientati **a favore
   dell'acquirente**: stoccaggi sopra media 5 anni, LNG send-out sopra media, meteo più mite della
   norma 1991+, GPR basso. Le condizioni usano la **media mobile 7 gg** (il puntuale è rumoroso).
@@ -131,11 +133,11 @@ Decisione utente: un'unica app con **selettore Gas | Energia elettrica** in side
 - **EE**: prezzo **PUN** (`PUN_INDEX_GME` orario, media delle 24 ore; storico 2020→ caricato il
   21/08 con `App_Offerte/app/data_updater/backfill_pun.py`, `Granularita=h` su tutto il periodo —
   il quartorario GME parte dal 01/10/2025 ma l'orario resta disponibile). Scenario a 5 variabili:
-  produzione zonale (7 zone, ENTSO-E — **in attesa del token** `ENTSOE_API_KEY`), meteo (stessa
+  produzione zonale (7 zone, ENTSO-E, secret `ENTSOE_API_KEY` attivo dal 24/08), meteo (stessa
   serie del gas ma `abs_delta`: caldo e freddo anomali sono entrambi sfavorevoli), prezzo gas
   (`sorgente='indice'` su MGP_GAS), quota rinnovabili (ENTSO-E), GPR. Le serie mai caricate
-  contano 50/100 e NON generano alert di freschezza finché non arriva il primo dato. Pesi EE
-  iniziali 30/15/25/15/15, **NON tarati**: serve il backtest sul PUN quando ci sarà la produzione.
+  contano 50/100 e NON generano alert di freschezza finché non arriva il primo dato.
+  Pesi e soglia EE **tarati il 24-25/08** (g012, vedi sotto).
 - Pipeline: `gas-monitor` (v15) ricalcola anche l'EE, ne controlla la freschezza e delega a
   **`gas-monitor-entsoe`** produzione e rinnovabili; `gas-monitor-alert` valuta le regole per
   commodity (una email per utente e commodity).
