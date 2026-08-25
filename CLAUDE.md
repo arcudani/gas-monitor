@@ -151,6 +151,21 @@ resta fuori); per lo scenario non conta, il punteggio è un **percentile** sulla
 ⚠️ Il **2015 ha copertura incompleta** (222 TWh contro 250 del 2016, +12% non reale): la serie
 parte dal 2016.
 
+**Taratura EE (g012, 24-25/08/2026, confermata dal committente)** — pesi 10/15/30/30/15
+(produzione/meteo/gas/rinnovabili/geopolitica), **soglia scenario 55** (lo scenario EE viaggia a ~49
+e supera 60 di rado). Backtest: 32 finestre, 78% buone, +15,8% (con i parametri del gas: 70%,
++12,8%); robusta sui sotto-periodi, evita la finestra peggiore (feb 2025, −26%). I default delle
+schede Admin EE sono allineati ai valori tarati. NON ritoccare senza rifare griglia + robustezza
+(script della sessione 24-25/08 in memoria).
+
+**Prestazioni del motore (g013, 25/08/2026)** — dopo g010 il ricalcolo era salito a 20-26 s e i run
+del mattino (RPC via PostgREST, timeout 8 s) sono falliti per un'intera mattinata. Fix doppio:
+(1) `norma` e `media5` MATERIALIZED (le stime di cardinalità collassavano a rows=1 → nested loop
+~10k×; stessa classe di base5/exp5) → 9,7 s, A/B 0 differenze; (2) cintura di sicurezza
+`ALTER ROLE service_role SET statement_timeout = '120s'` a livello DB. ⚠️ Dopo OGNI modifica al
+motore misurare il tempo di `gas_ricalcola_segnale` per entrambe le commodity: sopra ~60 s il run
+quotidiano torna a rischio anche con la cintura.
+
 **Prezzo in vetrina (g011, 24/08/2026)** — `gas_commodity.prezzo_vetrina`: `giorno` (gas) o `mese`
 (EE, media del mese IN CORSO come numero grande). Motivo: dentro un mese il PUN oscilla di 55–88
 €/MWh e il mese è l'unità dei contratti indicizzati; il **motore resta giornaliero** perché il

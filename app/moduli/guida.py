@@ -166,7 +166,8 @@ I gruppi:
 
 **Scenario — pesi** (devono sommare 100): quanto contano stoccaggi (35), meteo (25), LNG (20), geopolitica (20).
 
-**Scenario**: soglia *favorevole* (60) · giorni della media mobile (7) · scenario minimo per l'opportunità di prezzo (35).
+**Scenario**: soglia *favorevole* (gas 60 · energia elettrica 55, tarata il 24/08/2026: lo scenario elettrico
+viaggia più basso) · giorni della media mobile (7) · scenario minimo per l'opportunità di prezzo (35).
 
 **Prezzo — orizzonti**: giorni delle tre rette di trend, breve (20) / medio (60) / lungo (180); devono essere crescenti.
 
