@@ -202,7 +202,7 @@ vetrina = INFO.get("prezzo_vetrina") or "giorno"
 if vetrina == "mese":
     val_grande, udm_grande = _it(mese_med, 2), f"{PZ_UDM} · {mese_nome}"
     riga_sotto = (f"{mese_gg} giorni su {mese_tot} · giorno {ult['Data'].strftime('%d/%m')} "
-                  f"{_it(pz, 2)} {PZ_UDM}")
+                  f"<b>{_it(pz, 2)}</b> {PZ_UDM}")
 else:
     val_grande, udm_grande = _it(pz, 2), PZ_UDM
     riga_sotto = (f"{branding.gm_delta(d_pz, d_dec, PZ_UDM)} {d_lbl} · "
