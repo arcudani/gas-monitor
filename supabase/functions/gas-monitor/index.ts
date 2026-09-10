@@ -45,20 +45,44 @@ const CITTA = [
 ];
 
 // ---------------------------------------------------------------- REST helper
+// Ritenta i guasti TRANSITORI del gateway REST: rete caduta, 5xx e il 401
+// PGRST303 "JWT issued at future" (sfasamento d'orologio lato Supabase, non
+// una credenziale sbagliata). I tre incidenti in due mesi — PGRST303 il
+// 26/08, 504 Gateway Timeout il 09 e il 10/09 — hanno colpito tutti la PRIMA
+// chiamata dopo l'avvio del worker, mai la query in se' (la SELECT di guardia
+// gira in ~1 ms su 750 righe indicizzate). Ritentare e' sicuro: le scritture
+// che passano di qui sono upsert idempotenti (on_conflict) o ricalcoli.
+const PAUSE_RETRY_MS = [1000, 3000];
+
 async function sb(path: string, init: RequestInit = {}): Promise<Response> {
-  const r = await fetch(`${SB_URL}${path}`, {
-    ...init,
-    headers: {
-      apikey: SB_KEY,
-      Authorization: `Bearer ${SB_KEY}`,
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
-  });
-  if (!r.ok) {
-    throw new Error(`REST ${path}: ${r.status} ${await r.text()}`);
+  let ultimo = "";
+  for (let tentativo = 0; tentativo <= PAUSE_RETRY_MS.length; tentativo++) {
+    if (tentativo > 0) {
+      await new Promise((ok) => setTimeout(ok, PAUSE_RETRY_MS[tentativo - 1]));
+    }
+    let r: Response;
+    try {
+      r = await fetch(`${SB_URL}${path}`, {
+        ...init,
+        headers: {
+          apikey: SB_KEY,
+          Authorization: `Bearer ${SB_KEY}`,
+          "Content-Type": "application/json",
+          ...(init.headers ?? {}),
+        },
+      });
+    } catch (e) {                     // rete: sempre ritentabile
+      ultimo = (e as Error).message;
+      continue;
+    }
+    if (r.ok) return r;
+    const corpo = await r.text();
+    ultimo = `${r.status} ${corpo}`;
+    const transitorio = r.status >= 500 ||
+      (r.status === 401 && corpo.includes("PGRST303"));
+    if (!transitorio) break;          // 4xx vero: ritentare non serve
   }
-  return r;
+  throw new Error(`REST ${path}: ${ultimo}`);
 }
 
 type Riga = {
@@ -255,12 +279,25 @@ function oraRoma(): { hhmm: number; data: string } {
   };
 }
 
+// GUARDIE (controlli accessori, non dati): se il gateway non risponde nemmeno
+// dopo i retry, una guardia non deve MAI dichiarare guasta una pipeline che sta
+// funzionando — prima di questa modifica un 504 sulla riga qui sotto scriveva
+// status='error' in task_runs e faceva comparire un'anomalia inesistente nel
+// digest (09 e 10/09/2026, mentre il run delle 4:30 era andato a buon fine).
+// Si prosegue col default meno dannoso:
+//   giaOkOggi -> false: al massimo si rifa' lavoro gia' fatto (le scritture
+//     sono upsert e gli alert utente hanno il dedup giornaliero a DB);
+//   giaErroreOggi -> false: meglio una mail di alert doppia che una persa.
 async function giaOkOggi(dataRoma: string): Promise<boolean> {
-  const r = await sb(
-    `/rest/v1/task_runs?task_id=eq.gas-monitor&status=eq.success` +
-    `&started_at=gte.${dataRoma}T00:00:00%2B02:00&select=id&limit=1`,
-  );
-  return ((await r.json()) as unknown[]).length > 0;
+  try {
+    const r = await sb(
+      `/rest/v1/task_runs?task_id=eq.gas-monitor&status=eq.success` +
+      `&started_at=gte.${dataRoma}T00:00:00%2B02:00&select=id&limit=1`,
+    );
+    return ((await r.json()) as unknown[]).length > 0;
+  } catch (_e) {
+    return false;
+  }
 }
 
 // Un run in errore c'e' gia' stato oggi? Serve a NON ripetere l'email di
@@ -268,11 +305,15 @@ async function giaOkOggi(dataRoma: string): Promise<boolean> {
 // tentativi = 5 email): si avvisa solo al PRIMO errore del giorno, i
 // successivi restano comunque in task_runs.
 async function giaErroreOggi(dataRoma: string): Promise<boolean> {
-  const r = await sb(
-    `/rest/v1/task_runs?task_id=eq.gas-monitor&status=eq.error` +
-    `&started_at=gte.${dataRoma}T00:00:00%2B02:00&select=id&limit=1`,
-  );
-  return ((await r.json()) as unknown[]).length > 0;
+  try {
+    const r = await sb(
+      `/rest/v1/task_runs?task_id=eq.gas-monitor&status=eq.error` +
+      `&started_at=gte.${dataRoma}T00:00:00%2B02:00&select=id&limit=1`,
+    );
+    return ((await r.json()) as unknown[]).length > 0;
+  } catch (_e) {
+    return false;
+  }
 }
 
 function isoAddDays(iso: string, giorni: number): string {
