@@ -52,7 +52,7 @@ ERP e app Offerte caricano `utenti` senza filtro di ruolo, un cliente messo lì 
 Cookie proprio `bros_gas_auth`. `db.py` = pool psycopg con `prepare_threshold=None` (pooler Supabase).
 
 **Il dato è tutto pre-calcolato in cloud; l'app legge e basta** (RNF: nessuna chiamata esterna a
-runtime). Pipeline = tre Edge Function Supabase (sorgente in `supabase/functions/`, **deploy via
+runtime). Pipeline = quattro Edge Function Supabase (sorgente in `supabase/functions/`, **deploy via
 MCP `deploy_edge_function`, NON via git** — SEMPRE `list_edge_functions`/`get_edge_function` e
 confronto versione prima, altre sessioni editano lo stesso progetto):
 - `gas-monitor` — cron pg_cron ogni 30' 04:00–07:30 UTC, gate interno Roma 06:30–09:30, una sola
@@ -138,7 +138,7 @@ Decisione utente: un'unica app con **selettore Gas | Energia elettrica** in side
   (`sorgente='indice'` su MGP_GAS), quota rinnovabili (ENTSO-E), GPR. Le serie mai caricate
   contano 50/100 e NON generano alert di freschezza finché non arriva il primo dato.
   Pesi e soglia EE **tarati il 24-25/08** (g012, vedi sotto).
-- Pipeline: `gas-monitor` (v15) ricalcola anche l'EE, ne controlla la freschezza e delega a
+- Pipeline: `gas-monitor` (v16) ricalcola anche l'EE, ne controlla la freschezza e delega a
   **`gas-monitor-entsoe`** produzione e rinnovabili; `gas-monitor-alert` valuta le regole per
   commodity (una email per utente e commodity).
 
@@ -203,11 +203,23 @@ non cancellare.
 
 ## Gotchas già pagati
 
-- `task_runs.status` accetta solo `success|error`; PostgREST ha statement_timeout 8s → i ricalcoli
-  full-history vanno via psycopg diretto o funzioni veloci (g003 hash-join, non subquery correlate).
+- `task_runs.status` accetta solo `success|error`; PostgREST parte con statement_timeout 8s — alzato a
+  120s per `service_role` il 25/08/2026 dopo una mattinata di run falliti (57014). Resta la regola:
+  i ricalcoli full-history vanno via psycopg diretto o funzioni veloci (g003 hash-join, non subquery
+  correlate), e dopo ogni modifica al motore si misura il tempo per ENTRAMBE le commodity.
 - GIE ALSI `inventory` è un oggetto `{lng, gwh}`; `percent_rank()` ritorna double → `::numeric`
   prima di `round`.
-- Regola alert di prova attiva: utente Daniele, `indice > 50` → energia@ — rimuovere/alzare prima
-  del go-live coi clienti.
+- Regola alert di prova (utente Daniele, `indice > 50` → energia@): RIMOSSA a settembre 2026 in
+  preparazione del go-live. `gas_alert` ora e' vuota: gli alert partiranno dalle regole dei clienti.
 - Email: mittente Brevo verificato `energia@`, nessun riferimento all'automazione nel testo.
 - Porta 8530 bloccata da un socket zombie (si libera al riavvio PC): per questo la preview è su 8532.
+- **Un controllo ACCESSORIO non deve poter far fallire il run.** `giaOkOggi()` (lo skip se la
+  pipeline ha gia' girato bene oggi) passava da `sb()`, che lancia su qualunque risposta non-ok: un
+  504 del gateway REST arrivava al catch esterno e scriveva `status='error'` in `task_runs`, cioe'
+  un'anomalia inesistente nel digest (09 e 10/09/2026, mentre il run delle 4:30 era riuscito). La query
+  non c'entrava: gira in ~1 ms (index scan su 750 righe). Dalla **v16** `sb()` ritenta i transitori
+  (rete, 5xx e il 401 `PGRST303` "JWT issued at future", che e' uno sfasamento d'orologio e non una
+  credenziale: 3 tentativi, pause 1s/3s; su un 4xx vero esce subito) e le due guardie non propagano piu'.
+  Stessa protezione in `promemoria-annuali` v5, dove pero' l'insert su `promemoria_inviati` e'
+  diventato UPSERT: ha la PK (anno, promemoria_id, tipo) e un retry avrebbe preso 409 trasformando un
+  promemoria INVIATO in un errore.
