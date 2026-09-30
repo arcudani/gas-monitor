@@ -85,6 +85,36 @@ async function sb(path: string, init: RequestInit = {}): Promise<Response> {
   throw new Error(`REST ${path}: ${ultimo}`);
 }
 
+// --------------------------------------------------------- fonti esterne
+// Ritenta i guasti TRANSITORI delle fonti (rete, 429, 5xx). Open-Meteo risponde
+// "503 The service is overloaded" con regolarita': 25 run falliti in 30 giorni
+// (settembre 2026), quasi tutti rientrati al tentativo del cron successivo. Un
+// disturbo che dura pochi secondi non deve costare mezz'ora di attesa e
+// un'email di alert. Su un 4xx vero (chiave o parametri sbagliati) si esce
+// subito: ritentare non servirebbe.
+const PAUSE_FONTE_MS = [1500, 4000];
+
+async function fetchFonte(etichetta: string, url: string,
+                          init: RequestInit = {}): Promise<Response> {
+  let ultimo = "";
+  for (let tentativo = 0; tentativo <= PAUSE_FONTE_MS.length; tentativo++) {
+    if (tentativo > 0) {
+      await new Promise((ok) => setTimeout(ok, PAUSE_FONTE_MS[tentativo - 1]));
+    }
+    let r: Response;
+    try {
+      r = await fetch(url, init);
+    } catch (e) {                     // rete: sempre ritentabile
+      ultimo = (e as Error).message;
+      continue;
+    }
+    if (r.ok) return r;
+    ultimo = `${r.status} ${(await r.text()).slice(0, 200)}`;
+    if (r.status < 500 && r.status !== 429) break;
+  }
+  throw new Error(`${etichetta}: ${ultimo}`);
+}
+
 type Riga = {
   data: string; commodity?: string; variabile: string;
   metrica: string; valore: number; fonte: string;
@@ -118,8 +148,7 @@ async function fetchMeteo(dal: string, al: string, archivio: boolean): Promise<R
     : `https://api.open-meteo.com/v1/forecast?past_days=10&forecast_days=1`;
   const url = `${base}&latitude=${lats}&longitude=${lons}` +
     `&daily=temperature_2m_mean&timezone=Europe%2FRome`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Open-Meteo: ${r.status} ${await r.text()}`);
+  const r = await fetchFonte("Open-Meteo", url);
   const js = await r.json();
   const serie = Array.isArray(js) ? js : [js];   // multi-citta' -> array
   if (serie.length !== CITTA.length) {
@@ -154,8 +183,7 @@ async function fetchGie(api: "agsi" | "alsi", dal: string, al: string): Promise<
   while (pagina < 100) {                          // guardia anti-loop
     const url = `https://${api}.gie.eu/api?country=IT&from=${dal}&to=${al}` +
       `&size=300&page=${pagina}`;
-    const r = await fetch(url, { headers: { "x-key": GIE_KEY } });
-    if (!r.ok) throw new Error(`GIE ${api}: ${r.status} ${await r.text()}`);
+    const r = await fetchFonte(`GIE ${api}`, url, { headers: { "x-key": GIE_KEY } });
     const js = await r.json();
     const dati = js.data ?? [];
     for (const d of dati) {
@@ -186,11 +214,10 @@ async function fetchGie(api: "agsi" | "alsi", dal: string, al: string): Promise<
 async function delegaEntsoe(dal: string, al: string): Promise<number> {
   // Produzione elettrica e quota rinnovabili (commodity 'ee'): funzione
   // dedicata come il GPR, il parsing XML e' pesante (token ENTSO-E 21/08/2026).
-  const r = await fetch(
+  const r = await fetchFonte("ENTSO-E",
     `${SB_URL}/functions/v1/gas-monitor-entsoe?dal=${dal}&al=${al}`,
     { headers: { Authorization: `Bearer ${SB_KEY}`, apikey: SB_KEY } },
   );
-  if (!r.ok) throw new Error(`ENTSO-E: ${r.status} ${(await r.text()).slice(0, 200)}`);
   return Number(((await r.json()) as { righe: number }).righe);
 }
 
@@ -199,11 +226,10 @@ async function delegaGpr(dal: string, al: string): Promise<number> {
   // DEDICATA gas-monitor-gpr (slug diverso = worker/memoria propri; una
   // sub-invocazione dello stesso slug riusa l'isolate e va in
   // WORKER_RESOURCE_LIMIT — visto il 18/08/2026).
-  const r = await fetch(
+  const r = await fetchFonte("GPR",
     `${SB_URL}/functions/v1/gas-monitor-gpr?dal=${dal}&al=${al}`,
     { headers: { Authorization: `Bearer ${SB_KEY}`, apikey: SB_KEY } },
   );
-  if (!r.ok) throw new Error(`GPR: ${r.status} ${await r.text()}`);
   return Number(((await r.json()) as { righe: number }).righe);
 }
 
