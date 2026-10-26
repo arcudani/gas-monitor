@@ -371,15 +371,18 @@ if fwd:
         return sum(v) / n if len(v) == n else None
 
     def _vs_spot(v) -> str:
+        """Scostamento dal prezzo attuale, su una riga propria sotto il valore (nella
+        mini-griglia le celle sono strette: etichetta + scostamento si accavallavano)."""
         if v is None or not spot:
             return ""
         d = 100 * (v / spot - 1)
-        return f"<span style='color:{'#64748b'}'>{'+' if d >= 0 else '−'}{_it(abs(d), 1)} %</span>"
+        return (f"<span style='display:block;font-size:.74rem;color:#64748b;margin-top:2px'>"
+                f"{'+' if d >= 0 else '−'}{_it(abs(d), 1)} % vs oggi</span>")
 
     f12 = _media_curva(12)
     celle = []
     for k, c in enumerate(curva[:3]):
-        celle.append((c["Etichetta"].replace(" ", " 20"), c["Prezzo"]))
+        celle.append((c["Etichetta"], c["Prezzo"]))
     celle += [("media 3 mesi", _media_curva(3)), ("media 6 mesi", _media_curva(6))]
     cy = next((r for r in fwd if r["tipo"] == "CY" and pd.Timestamp(r["dal"]).year == seduta.year + 1), None)
     if cy:
@@ -402,7 +405,7 @@ if fwd:
         f"({'MT-GAS' if COM == 'gas' else 'MTE baseload'}) della seduta del <b>{seduta.strftime('%d/%m/%Y')}</b>, "
         f"in €/MWh. Confronto con {spot_lbl} (<b>{_it(spot, 2)}</b>).</div>"
         f"<div class='gm-mini gm-mini-ink' style='grid-template-columns:repeat({len(celle)}, minmax(0,1fr))'>"
-        + "".join(f"<div>{lbl} {_vs_spot(v)}<b>{_it(v, 2) if v is not None else 'n.d.'}</b></div>" for lbl, v in celle)
+        + "".join(f"<div>{lbl}<b>{_it(v, 2) if v is not None else 'n.d.'}</b>{_vs_spot(v)}</div>" for lbl, v in celle)
         + "</div></div>",
         unsafe_allow_html=True,
     )
@@ -524,8 +527,9 @@ if az_sel is not None:
                 verdetto = ("<b style='color:#0B4F78'>raggiungibile oggi</b>" if ok
                             else f"<b style='color:#64748b'>sopra l'obiettivo del {_it(delta, 1)}%</b>")
                 st.markdown(branding.gm_tile(
-                    nome, _it(fwd, 2), f"{PZ_UDM} · forward del {pd.Timestamp(o['seduta']).strftime('%d/%m')}",
-                    f"obiettivo <b>{_it(obj, 2)}</b> {PZ_UDM} · {verdetto}<br>{storia_txt}", accent=BLU_SCURO if ok else "#94a3b8"),
+                    nome, _it(fwd, 2), PZ_UDM,
+                    f"forward del {pd.Timestamp(o['seduta']).strftime('%d/%m')} · obiettivo <b>{_it(obj, 2)}</b> {PZ_UDM} · "
+                    f"{verdetto}<br>{storia_txt}", accent=BLU_SCURO if ok else "#94a3b8"),
                     unsafe_allow_html=True)
                 if len(h):
                     linea = alt.Chart(h).mark_line(color=BLU, strokeWidth=2).encode(
