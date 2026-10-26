@@ -34,6 +34,11 @@ MODULI: list[Modulo] = [
     Modulo("moduli/dashboard.py", "Dashboard", "📊",
            descrizione="Scenario, prezzo e segnale di fixing",
            sezione="", default=True),
+    # pagina SEPARATA dalla Dashboard (decisione utente 26/10/2026): il forward e
+    # gli obiettivi rispondono a domande diverse dall'indicatore
+    Modulo("moduli/forward.py", "Forward e obiettivi", "📈",
+           descrizione="A quanto si potrebbe fissare oggi e se va bene per il cliente",
+           url_path="forward", sezione=""),
     Modulo("moduli/dettaglio.py", "Dettaglio", "🔎",
            descrizione="Storico e confronti di ciascuna variabile",
            url_path="dettaglio"),

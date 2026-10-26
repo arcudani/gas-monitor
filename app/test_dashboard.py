@@ -20,9 +20,8 @@ def test_dashboard_tutti_i_periodi() -> None:
     assert "Scenario di approvvigionamento" in testo, "pannello scenario mancante"
     assert "Prezzo gas MGP-GAS" in testo, "pannello prezzo mancante"
     assert "Segnale di oggi" in testo, "pannello segnale mancante"
-    # g014: curva forward GME, pannello informativo separato dal segnale
-    assert "Mercato a termine" in testo, "pannello forward mancante"
-    assert "media dei prossimi 12 mesi" in testo, "media forward 12 mesi mancante"
+    # forward e obiettivi stanno nella pagina separata (test_forward.py): qui NON devono comparire
+    assert "Mercato a termine" not in testo, "il forward non deve stare in Dashboard"
     radio = at.radio[0]
     for opz in radio.options:
         radio.set_value(opz).run()

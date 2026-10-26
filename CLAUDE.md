@@ -266,3 +266,7 @@ prodotto della curva es. `Q-2027-01`, prezzo €/MWh materia prima, note, attivo
   settimane/mesi (trimestri ~25-40 sedute, mesi anche centinaia). `gas_forward` li conserva grezzi; i lettori li
   filtrano: la Dashboard esclude dalla curva i prodotti mai cambiati dal listing (>= 5 sedute) e scarta la coda
   iniziale piatta nella storia degli obiettivi. Qualunque analisi su `gas_forward` deve fare lo stesso.
+- **Pagina separata `moduli/forward.py` "Forward e obiettivi"** (26/10/2026 sera, richiesta utente: "due info
+  distinte, unirle confonde"): mercato a termine + obiettivi di prezzo stanno QUI, subito sotto Dashboard nel menu
+  (`sezione=""`, url `/forward`), NON in Dashboard, che torna a contenere solo scenario/prezzo/segnale/variabili/storico.
+  Test: `test_forward.py` (gas+EE, con e senza utente); `test_dashboard.py` verifica che il forward NON ci sia.
