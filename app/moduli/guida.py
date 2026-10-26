@@ -110,6 +110,15 @@ aggiornati ogni notte; sono prodotti poco liquidi, quindi i valori sono **indica
 riferimento in più per chi valuta un prezzo fisso: se il forward sta molto sopra l'indice (curva "in contango")
 bloccare costa un premio; se sta sotto, il mercato si aspetta prezzi in calo.
 
+### Il blocco "Obiettivo di prezzo"
+Tre informazioni, tre domande diverse: **l'indicatore** dice se il momento di mercato è propizio (lo spot è in flessione
+con fondamentali favorevoli); **il forward** dice a quanto potresti fissare oggi ciascun periodo; **l'obiettivo** dice se
+quel prezzo va bene *per te*. L'obiettivo è un prezzo in €/MWh di materia prima che Bros concorda con il cliente per
+ciascun trimestre (e per ciascuna commodity). Per ogni obiettivo la dashboard mostra il forward di oggi, se è
+**raggiungibile** (forward pari o sotto l'obiettivo) o di quanto è sopra, e la storia reale di quel prodotto negli
+ultimi 12 mesi: in quante sedute è stato sotto l'obiettivo e il suo minimo. Nessuna previsione: è un confronto
+aritmetico su prezzi osservati. Fissare all'obiettivo **garantisce l'obiettivo, non il minimo**.
+
 ### Le quattro variabili
 Una tessera per ciascuna, con il valore fisico (es. 79,8 % di riempimento, 26,9 °C, 538 GWh/g, GPR 144),
 cosa misura e la **barra del punteggio** 0–100 (alto = favorevole).

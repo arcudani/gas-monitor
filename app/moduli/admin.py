@@ -28,7 +28,8 @@ st.caption("Configurazione del segnale e stato della pipeline dati per la commod
 
 utente = st.session_state.get("utente_autenticato", "")
 
-tab_pipe, tab_par = st.tabs(["📡 Stato dati e pipeline", "🎛 Parametri del segnale"])
+tab_pipe, tab_par, tab_ob = st.tabs(["📡 Stato dati e pipeline", "🎛 Parametri del segnale",
+                                     "🎯 Obiettivi di prezzo"])
 
 
 # =============================================================================
@@ -233,3 +234,75 @@ with tab_pipe:
         d3["Ultima esecuzione"] = pd.to_datetime(d3["Ultima esecuzione"], utc=True).dt.tz_convert(
             "Europe/Rome").dt.strftime("%d/%m/%Y %H:%M")
     st.dataframe(d3, width="stretch", hide_index=True)
+
+
+# =============================================================================
+# Tab OBIETTIVI DI PREZZO (g015): Bros imposta, per conto del cliente, il prezzo
+# obiettivo di ciascun trimestre (prodotto della curva forward) per commodity.
+# La dashboard del cliente confronta il forward con questi valori.
+# =============================================================================
+with tab_ob:
+    st.subheader(f"Obiettivi di prezzo per cliente · {INFO['nome'].lower()}")
+    st.caption("Prezzo obiettivo in €/MWh di materia prima, per trimestre della curva forward. In dashboard il cliente "
+               "vede, per ogni obiettivo, il forward di oggi, se è raggiungibile e la storia reale di quel prodotto: "
+               "nessuna previsione, solo confronto aritmetico.")
+
+    def _prodotti_futuri(n: int = 8) -> list[str]:
+        oggi = pd.Timestamp.today().to_period("Q")
+        return [f"Q-{(oggi + k).year}-{(oggi + k).quarter:02d}" for k in range(1, n + 1)]
+
+    aziende = db.query("SELECT id, nome FROM public.gas_aziende ORDER BY nome")
+    if not aziende:
+        st.info("Nessuna azienda in gas_aziende: creare prima l'azienda del cliente.")
+    else:
+        nomi_az = {int(i): n for i, n in aziende}
+        az = st.selectbox("Cliente", list(nomi_az), format_func=lambda i: nomi_az[i], key="adm_ob_azienda")
+        righe = db.query(
+            "SELECT o.id, o.prodotto, o.prezzo, o.note, o.attivo, o.autore, o.updated_at, f.prezzo "
+            "FROM public.gas_obiettivi o LEFT JOIN LATERAL ("
+            "  SELECT prezzo FROM public.gas_forward g WHERE g.commodity = o.commodity AND g.prodotto = o.prodotto "
+            "  ORDER BY seduta DESC LIMIT 1) f ON true "
+            "WHERE o.azienda_id = %s AND o.commodity = %s ORDER BY o.prodotto", (az, COM))
+        if righe:
+            st.dataframe(pd.DataFrame([{
+                "Periodo": pr, "Obiettivo €/MWh": float(pz), "Forward oggi": (None if fw is None else float(fw)),
+                "Scostamento %": (None if fw is None else round(100 * (float(fw) / float(pz) - 1), 1)),
+                "Attivo": "sì" if att else "no", "Note": nt, "Autore": au,
+                "Aggiornato": pd.Timestamp(up).tz_convert("Europe/Rome").strftime("%d/%m/%Y %H:%M"),
+            } for _, pr, pz, nt, att, au, up, fw in righe]), width="stretch", hide_index=True)
+        else:
+            st.info("Nessun obiettivo per questo cliente e commodity.")
+
+        with st.form("adm_ob_form", clear_on_submit=False):
+            c1, c2, c3 = st.columns([1.2, 1, 2])
+            esistenti = [r[1] for r in righe]
+            opzioni = sorted(set(_prodotti_futuri()) | set(esistenti))
+            prodotto = c1.selectbox("Trimestre", opzioni, format_func=lambda p: f"{int(p[7:9])}° trim. {p[2:6]}")
+            prezzo = c2.number_input("Obiettivo €/MWh", min_value=1.0, max_value=1000.0, value=50.0, step=0.5)
+            note = c3.text_input("Note (facoltative)", "")
+            salva = st.form_submit_button("💾 Salva obiettivo")
+        if salva:
+            try:
+                with db.connect() as conn:
+                    conn.execute(
+                        "INSERT INTO public.gas_obiettivi (azienda_id, commodity, prodotto, prezzo, note, autore) "
+                        "VALUES (%s, %s, %s, %s, %s, %s) "
+                        "ON CONFLICT (azienda_id, commodity, prodotto) DO UPDATE SET prezzo = excluded.prezzo, "
+                        "  note = excluded.note, autore = excluded.autore, attivo = true, updated_at = now()",
+                        (az, COM, prodotto, float(prezzo), note, utente))
+                    conn.commit()
+                st.cache_data.clear()
+                st.success(f"Obiettivo salvato: {prodotto} = {prezzo:.2f} €/MWh per {nomi_az[az]}.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Salvataggio fallito: {e}")
+        attivi = [r for r in righe if r[4]]
+        if attivi:
+            da_dis = st.selectbox("Disattiva un obiettivo", ["—"] + [r[1] for r in attivi], key="adm_ob_dis")
+            if da_dis != "—" and st.button("Disattiva", key="adm_ob_dis_btn"):
+                with db.connect() as conn:
+                    conn.execute("UPDATE public.gas_obiettivi SET attivo = false, updated_at = now() "
+                                 "WHERE azienda_id = %s AND commodity = %s AND prodotto = %s", (az, COM, da_dis))
+                    conn.commit()
+                st.cache_data.clear()
+                st.rerun()

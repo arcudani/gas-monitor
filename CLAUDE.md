@@ -246,3 +246,23 @@ segnale o alert** (per non peggiorare lo strumento).
   (si prendono comunque 12 punti). Caption fissa: "non e' una previsione".
 - Guida: paragrafo nel tab Dashboard + FAQ "Perche' il monitor non fa previsioni di prezzo?".
 - Non ancora nel PDF/Excel di export.
+
+## Obiettivi di prezzo (g015, 26/10/2026): forward vs prezzo obiettivo del cliente
+
+Sintesi decisa con l'utente dopo le analisi del 26/10 (`C:\Code\Forecast_PoC\analisi\RISULTATI_ANALISI.md`):
+**l'indicatore dice se il momento e' propizio (spot), il forward dice a quanto si potrebbe fissare, l'obiettivo
+dice se quel prezzo va bene per il cliente.** Niente previsioni. Tabella `gas_obiettivi` (azienda_id, commodity,
+prodotto della curva es. `Q-2027-01`, prezzo €/MWh materia prima, note, attivo; unique per azienda/commodity/prodotto).
+- Admin → tab "🎯 Obiettivi di prezzo": Bros imposta/aggiorna/disattiva gli obiettivi per cliente, per trimestre
+  (prossimi 8) e per la commodity selezionata.
+- Dashboard sezione 2c: l'utente con `gas_utenti.azienda_id` vede i propri obiettivi; l'admin senza azienda sceglie
+  il cliente da un selectbox. Per obiettivo: forward dell'ultima seduta, raggiungibile/scostamento, storia 12 mesi
+  (quota sedute sotto l'obiettivo, minimo e data), grafico forward del prodotto + linea dell'obiettivo.
+- Esiti delle analisi da ricordare: il segnale spot batte il caso sullo spot (gas 77%, EE 82%) ma NON serve a chi
+  fissa al forward (gas); lo scenario gas non e' predittivo (placebo p=0,36), quello EE si' (p=0,01); ri-tarare i
+  pesi non e' giustificato; nel fixing a tranche solo la forma della curva (backwardation/contango) batte il
+  calendario, ma l'utente non l'ha ritenuta convincente -> non implementata.
+- ⚠️ **Segnaposto GME nella curva forward**: un prodotto appena quotato porta un prezzo di controllo COSTANTE per
+  settimane/mesi (trimestri ~25-40 sedute, mesi anche centinaia). `gas_forward` li conserva grezzi; i lettori li
+  filtrano: la Dashboard esclude dalla curva i prodotti mai cambiati dal listing (>= 5 sedute) e scarta la coda
+  iniziale piatta nella storia degli obiettivi. Qualunque analisi su `gas_forward` deve fare lo stesso.

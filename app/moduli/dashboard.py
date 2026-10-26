@@ -78,10 +78,16 @@ def _carica(com: str) -> dict:
     # Curva forward GME (g014): ultima seduta disponibile. Informazione A PARTE
     # dal segnale (decisione 26/10/2026): nessun modello previsionale ha battuto
     # il random walk nel backtest, il forward invece e' un prezzo osservato.
-    fwd = db.query("SELECT seduta, prodotto, tipo, consegna_dal, consegna_al, prezzo "
-                   "FROM public.gas_forward WHERE commodity = %s AND seduta = "
-                   "(SELECT max(seduta) FROM public.gas_forward WHERE commodity = %s) "
-                   "ORDER BY consegna_dal, tipo", (com, com))
+    # Esclusi i prodotti il cui prezzo di controllo non e' MAI cambiato dalla
+    # quotazione (>= 5 sedute): e' un segnaposto GME, non un prezzo (visto il
+    # 26/10/2026: Q-2027-01 gas a 29,855 fisso per settimane dopo il listing).
+    fwd = db.query("SELECT f.seduta, f.prodotto, f.tipo, f.consegna_dal, f.consegna_al, f.prezzo "
+                   "FROM public.gas_forward f JOIN ("
+                   "  SELECT prodotto, count(*) AS n, count(DISTINCT prezzo) AS nd FROM public.gas_forward "
+                   "  WHERE commodity = %s GROUP BY prodotto) s ON s.prodotto = f.prodotto "
+                   "WHERE f.commodity = %s AND f.seduta = (SELECT max(seduta) FROM public.gas_forward WHERE commodity = %s) "
+                   "  AND NOT (s.nd = 1 AND s.n >= 5) "
+                   "ORDER BY f.consegna_dal, f.tipo", (com, com, com))
     return {"seg": df, "cfg": (cfg[0][0] if cfg else {}) or {},
             "var": {k: (None if v is None else float(v)) for k, v in var},
             "fresh": fresh, "run": run[0] if run else None,
@@ -420,6 +426,117 @@ if fwd:
     st.caption("ℹ️ Il forward **non è una previsione**: è il prezzo a cui il mercato scambia oggi i periodi futuri "
                "(prodotti GME poco liquidi: prezzi di controllo, indicativi). Nei periodi tranquilli incorpora di "
                "norma un premio rispetto all'indice; il segnale di fixing resta calcolato solo su scenario e prezzo.")
+
+# =============================================================================
+# 2c. OBIETTIVO DI PREZZO del cliente (g015) — forward vs prezzo obiettivo
+# =============================================================================
+# Sintesi decisa il 26/10/2026: l'indicatore dice se il momento e' propizio
+# (spot), il forward dice a quanto si potrebbe fissare, l'obiettivo dice se
+# quel prezzo va bene per il cliente. Gli obiettivi li imposta Bros (Admin)
+# per trimestre e per commodity; qui solo confronto aritmetico e storia reale.
+PERIODO_IT = {"Q": "{q}° trimestre {y}", "CY": "anno {y}"}
+
+
+def _nome_periodo(prod: str) -> str:
+    if prod.startswith("Q-"):
+        y, q = prod[2:].split("-")
+        return f"{int(q)}° trimestre {y}"
+    if prod.startswith("CY-"):
+        return f"anno {prod[3:]}"
+    return prod
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _contesto_obiettivi(com: str, utente: str) -> dict:
+    riga = db.query("SELECT azienda_id, ruolo FROM public.gas_utenti WHERE username = %s", (utente,))
+    az_id, ruolo = (riga[0] if riga else (None, None))
+    aziende = db.query(
+        "SELECT DISTINCT a.id, a.nome FROM public.gas_obiettivi o JOIN public.gas_aziende a ON a.id = o.azienda_id "
+        "WHERE o.commodity = %s AND o.attivo ORDER BY a.nome", (com,))
+    return {"azienda_id": az_id, "ruolo": ruolo, "aziende": [(int(i), n) for i, n in aziende]}
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def _obiettivi_azienda(com: str, az_id: int) -> tuple[list[dict], pd.DataFrame]:
+    ob = db.query(
+        "SELECT o.prodotto, o.prezzo, o.note, f.prezzo, f.seduta, f.consegna_dal, f.consegna_al "
+        "FROM public.gas_obiettivi o LEFT JOIN LATERAL ("
+        "  SELECT prezzo, seduta, consegna_dal, consegna_al FROM public.gas_forward g "
+        "  WHERE g.commodity = o.commodity AND g.prodotto = o.prodotto ORDER BY seduta DESC LIMIT 1) f ON true "
+        "WHERE o.azienda_id = %s AND o.commodity = %s AND o.attivo ORDER BY o.prodotto", (az_id, com))
+    ob = [dict(zip(("prodotto", "obiettivo", "note", "forward", "seduta", "dal", "al"), r)) for r in ob]
+    prodotti = [o["prodotto"] for o in ob]
+    st_ = db.query(
+        "SELECT prodotto, seduta, prezzo FROM public.gas_forward WHERE commodity = %s AND prodotto = ANY(%s) "
+        "AND seduta >= current_date - 365 ORDER BY prodotto, seduta", (com, prodotti)) if prodotti else []
+    storia = pd.DataFrame(st_, columns=["Prodotto", "Seduta", "Forward"])
+    if not storia.empty:
+        storia["Seduta"] = pd.to_datetime(storia["Seduta"])
+        storia["Forward"] = pd.to_numeric(storia["Forward"], errors="coerce")
+        # Appena quotato, un prodotto GME porta per settimane un prezzo di controllo
+        # segnaposto costante (es. Q-2027-01 gas a 29,855 dal 29/12/2025): si scarta
+        # la coda iniziale piatta (>= 5 sedute identiche) perche' non e' un prezzo.
+        tenuti = []
+        for prod, g in storia.groupby("Prodotto", sort=False):
+            g = g.sort_values("Seduta")
+            cambi = g["Forward"].ne(g["Forward"].iloc[0]).to_numpy().nonzero()[0]
+            primo = int(cambi[0]) if len(cambi) else len(g)
+            tenuti.append(g.iloc[primo:] if primo >= 5 else g)
+        storia = pd.concat(tenuti) if tenuti else storia
+    return ob, storia
+
+
+_utente = st.session_state.get("utente_autenticato", "")
+ctx_ob = _contesto_obiettivi(COM, _utente) if _utente else {"azienda_id": None, "ruolo": None, "aziende": []}
+az_sel = ctx_ob["azienda_id"]
+nome_az = next((n for i, n in ctx_ob["aziende"] if i == az_sel), None)
+if az_sel is None and ctx_ob["ruolo"] == "admin" and ctx_ob["aziende"]:
+    # il consulente Bros vede gli obiettivi per conto del cliente scelto
+    nomi = {i: n for i, n in ctx_ob["aziende"]}
+    az_sel = st.selectbox("Obiettivi di prezzo del cliente", list(nomi), format_func=lambda i: nomi[i],
+                          key="gm_obiettivi_azienda")
+    nome_az = nomi[az_sel]
+if az_sel is not None:
+    obiettivi, storia_ob = _obiettivi_azienda(COM, int(az_sel))
+    if obiettivi:
+        st.markdown(f"<div class='gm-label' style='margin-top:18px'>Obiettivo di prezzo · {nome_az or ''} · "
+                    f"{INFO['nome'].lower()}</div>", unsafe_allow_html=True)
+        cols = st.columns(len(obiettivi))
+        for col, o in zip(cols, obiettivi):
+            with col:
+                nome = _nome_periodo(o["prodotto"])
+                obj = float(o["obiettivo"])
+                if o["forward"] is None:
+                    st.markdown(branding.gm_tile(nome, "n.d.", "", f"obiettivo <b>{_it(obj, 2)}</b> {PZ_UDM} · forward non quotato"),
+                                unsafe_allow_html=True)
+                    continue
+                fwd = float(o["forward"])
+                delta = 100 * (fwd / obj - 1)
+                ok = fwd <= obj
+                h = storia_ob[storia_ob["Prodotto"] == o["prodotto"]]
+                if len(h):
+                    quota = 100 * float((h["Forward"] <= obj).mean())
+                    i_min = int(h["Forward"].idxmin())
+                    storia_txt = (f"ultimi 12 mesi: sotto l'obiettivo nel <b>{quota:.0f}%</b> delle sedute · "
+                                  f"minimo <b>{_it(h.loc[i_min, 'Forward'], 2)}</b> il {h.loc[i_min, 'Seduta'].strftime('%d/%m/%Y')}")
+                else:
+                    storia_txt = "nessuna seduta negli ultimi 12 mesi"
+                verdetto = ("<b style='color:#0B4F78'>raggiungibile oggi</b>" if ok
+                            else f"<b style='color:#64748b'>sopra l'obiettivo del {_it(delta, 1)}%</b>")
+                st.markdown(branding.gm_tile(
+                    nome, _it(fwd, 2), f"{PZ_UDM} · forward del {pd.Timestamp(o['seduta']).strftime('%d/%m')}",
+                    f"obiettivo <b>{_it(obj, 2)}</b> {PZ_UDM} · {verdetto}<br>{storia_txt}", accent=BLU_SCURO if ok else "#94a3b8"),
+                    unsafe_allow_html=True)
+                if len(h):
+                    linea = alt.Chart(h).mark_line(color=BLU, strokeWidth=2).encode(
+                        x=alt.X("Seduta:T", title=None), y=alt.Y("Forward:Q", title=None, scale=alt.Scale(zero=False)),
+                        tooltip=[alt.Tooltip("Seduta:T", title="Seduta", format="%d/%m/%Y"),
+                                 alt.Tooltip("Forward:Q", title=f"Forward {PZ_UDM}", format=",.2f")])
+                    regola = alt.Chart(pd.DataFrame({"y": [obj]})).mark_rule(color=C_PREZZO, strokeDash=[6, 4]).encode(y="y:Q")
+                    branding.altair_it((linea + regola).properties(height=150))
+        st.caption("ℹ️ Linea blu: forward di quel periodo negli ultimi 12 mesi; linea rossa tratteggiata: l'obiettivo. "
+                   "Fissare all'obiettivo **garantisce l'obiettivo, non il minimo**: il confronto è aritmetico, nessuna previsione. "
+                   "Gli obiettivi sono impostati da Bros per conto del cliente (Admin → Obiettivi di prezzo).")
 
 # =============================================================================
 # 3. Stat tile delle variabili
