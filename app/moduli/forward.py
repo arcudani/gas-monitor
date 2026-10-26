@@ -269,12 +269,18 @@ else:
                     f"{verdetto}<br>{storia_txt}", accent=BLU_SCURO if ok else "#94a3b8"),
                     unsafe_allow_html=True)
                 if len(h):
+                    # Asse X = DATA DI QUOTAZIONE (quando il mercato ha prezzato quel trimestre),
+                    # non il periodo di consegna: va detto, altrimenti "mar-ott" si legge come il periodo.
+                    st.markdown(f"<div class='gm-sub' style='margin:10px 0 2px'>Quanto valeva il forward del "
+                                f"<b>{nome}</b> nei mesi scorsi (per data di quotazione)</div>", unsafe_allow_html=True)
                     linea = alt.Chart(h).mark_line(color=BLU, strokeWidth=2).encode(
-                        x=alt.X("Seduta:T", title=None), y=alt.Y("Forward:Q", title=None, scale=alt.Scale(zero=False)),
-                        tooltip=[alt.Tooltip("Seduta:T", title="Seduta", format="%d/%m/%Y"),
-                                 alt.Tooltip("Forward:Q", title=f"Forward {PZ_UDM}", format=",.2f")])
+                        x=alt.X("Seduta:T", title="data di quotazione"),
+                        y=alt.Y("Forward:Q", title=None, scale=alt.Scale(zero=False)),
+                        tooltip=[alt.Tooltip("Seduta:T", title="Quotato il", format="%d/%m/%Y"),
+                                 alt.Tooltip("Forward:Q", title=f"Forward {nome} ({PZ_UDM})", format=",.2f")])
                     regola = alt.Chart(pd.DataFrame({"y": [obj]})).mark_rule(color=C_PREZZO, strokeDash=[6, 4]).encode(y="y:Q")
                     branding.altair_it((linea + regola).properties(height=150))
-        st.caption("ℹ️ Linea blu: forward di quel periodo negli ultimi 12 mesi; linea rossa tratteggiata: l'obiettivo. "
+        st.caption("ℹ️ Linea blu: come si è mossa negli ultimi 12 mesi la quotazione forward di quel trimestre "
+                   "(l'asse è la data di quotazione, non il periodo di consegna); linea rossa tratteggiata: l'obiettivo. "
                    "Fissare all'obiettivo **garantisce l'obiettivo, non il minimo**: il confronto è aritmetico, nessuna previsione. "
                    "Gli obiettivi sono impostati da Bros per conto del cliente (Admin → Obiettivi di prezzo).")
