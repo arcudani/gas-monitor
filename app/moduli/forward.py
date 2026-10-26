@@ -130,7 +130,8 @@ else:
     if f12 is not None and spot:
         d12 = 100 * (f12 / spot - 1)
         verso = ("sopra" if d12 > 1 else "sotto" if d12 < -1 else "in linea con")
-        tag_fw = (f"vs {spot_lbl}: <b>{'+' if d12 >= 0 else '−'}{_it(abs(d12), 1)} %</b> · "
+        tag_fw = (f"media 12 mesi <b>{_it(f12, 2)}</b> vs {spot_lbl} <b>{_it(spot, 2)}</b>: "
+                  f"<b>{'+' if d12 >= 0 else '−'}{_it(abs(d12), 1)} %</b> · "
                   f"il mercato prezza i prossimi 12 mesi <b>{verso}</b> il prezzo attuale")
     else:
         tag_fw = "curva incompleta"
