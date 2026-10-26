@@ -156,11 +156,11 @@ else:
             tooltip=[alt.Tooltip("Etichetta:N", title="Mese"),
                      alt.Tooltip("Prezzo:Q", title="Forward €/MWh", format=",.2f"),
                      alt.Tooltip("Prodotto:N", title="Prodotto GME")])
-        linea_spot = alt.Chart(pd.DataFrame({"y": [spot]})).mark_rule(
-            color=C_PREZZO, strokeDash=[6, 4], strokeWidth=1.5).encode(y="y:Q")
-        st.markdown(branding.gm_legend([("solid", BLU, "forward per mese di consegna"),
-                                        ("dash", C_PREZZO, "prezzo di oggi")]), unsafe_allow_html=True)
-        branding.altair_it((barre + linea_spot).properties(height=190))
+        # valori sopra le barre (formato italiano calcolato qui: il format di Altair e' anglosassone)
+        dfc["Testo"] = dfc["Prezzo"].map(lambda v: _it(v, 2))
+        valori = base.mark_text(dy=-8, fontSize=12, fontWeight=600, color="#0f172a").encode(
+            y=alt.Y("Prezzo:Q"), text="Testo:N")
+        branding.altair_it((barre + valori).properties(height=200))
     if (data_pz - seduta).days > 7:
         st.caption(f"⚠️ Curva forward non aggiornata: ultima seduta disponibile {seduta.strftime('%d/%m/%Y')}.")
     st.caption("ℹ️ Il forward **non è una previsione**: è il prezzo a cui il mercato scambia oggi i periodi futuri "
