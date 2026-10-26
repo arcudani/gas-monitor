@@ -30,9 +30,8 @@ MESI_IT = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio
 MESI_BREVI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"]
 
 st.title(f"📈 {commodity.titolo(COM)} — Forward e obiettivi")
-st.caption("Tre informazioni, tre domande: la **Dashboard** dice se il momento di mercato è propizio; qui il "
-           "**forward** dice a quanto si potrebbe fissare oggi ciascun periodo e l'**obiettivo** dice se quel prezzo "
-           "va bene per il cliente. Nessuna previsione: prezzi osservati e confronti aritmetici.")
+st.caption("La **Dashboard** dice se il momento è propizio; qui il **forward** dice a quanto si potrebbe fissare "
+           "e l'**obiettivo** se va bene per il cliente. Nessuna previsione.")
 
 
 def _it(v, dec=1) -> str:
@@ -130,9 +129,8 @@ else:
     if f12 is not None and spot:
         d12 = 100 * (f12 / spot - 1)
         verso = ("sopra" if d12 > 1 else "sotto" if d12 < -1 else "in linea con")
-        tag_fw = (f"media 12 mesi <b>{_it(f12, 2)}</b> vs {spot_lbl} <b>{_it(spot, 2)}</b>: "
-                  f"<b>{'+' if d12 >= 0 else '−'}{_it(abs(d12), 1)} %</b> · "
-                  f"il mercato prezza i prossimi 12 mesi <b>{verso}</b> il prezzo attuale")
+        tag_fw = (f"<b>{'+' if d12 >= 0 else '−'}{_it(abs(d12), 1)} %</b> rispetto al prezzo di oggi "
+                  f"<b>{_it(spot, 2)}</b> · prossimi 12 mesi <b>{verso}</b> il prezzo attuale")
     else:
         tag_fw = "curva incompleta"
     st.markdown(
@@ -142,8 +140,8 @@ else:
         + (f"<div class='gm-value' style='color:{BLU}'>{_it(f12, 2)}<small>{PZ_UDM} · media dei prossimi 12 mesi</small></div>"
            if f12 is not None else "<div class='gm-value' style='color:#94a3b8'>n.d.</div>")
         + f"<div class='gm-tag'>{tag_fw}</div></div>"
-        f"<div class='gm-sub'>Prezzi di controllo GME ({'MT-GAS' if COM == 'gas' else 'MTE baseload'}) della seduta del "
-        f"<b>{seduta.strftime('%d/%m/%Y')}</b>, in €/MWh. Confronto con {spot_lbl} (<b>{_it(spot, 2)}</b>).</div>"
+        f"<div class='gm-sub'>Curva GME ({'MT-GAS' if COM == 'gas' else 'MTE'}) del <b>{seduta.strftime('%d/%m/%Y')}</b>, "
+        f"€/MWh · prezzo di oggi = {spot_lbl}</div>"
         f"<div class='gm-mini gm-mini-ink' style='grid-template-columns:repeat({len(celle)}, minmax(0,1fr))'>"
         + "".join(f"<div>{lbl}<b>{_it(v, 2) if v is not None else 'n.d.'}</b>{_vs_spot(v)}</div>" for lbl, v in celle)
         + "</div></div>",
@@ -160,15 +158,13 @@ else:
                      alt.Tooltip("Prodotto:N", title="Prodotto GME")])
         linea_spot = alt.Chart(pd.DataFrame({"y": [spot]})).mark_rule(
             color=C_PREZZO, strokeDash=[6, 4], strokeWidth=1.5).encode(y="y:Q")
-        st.markdown(branding.gm_legend([("solid", BLU, "forward per mese di consegna (prodotto mensile, "
-                                                      "altrimenti trimestre/stagione/anno)"),
-                                        ("dash", C_PREZZO, spot_lbl)]), unsafe_allow_html=True)
+        st.markdown(branding.gm_legend([("solid", BLU, "forward per mese di consegna"),
+                                        ("dash", C_PREZZO, "prezzo di oggi")]), unsafe_allow_html=True)
         branding.altair_it((barre + linea_spot).properties(height=190))
     if (data_pz - seduta).days > 7:
         st.caption(f"⚠️ Curva forward non aggiornata: ultima seduta disponibile {seduta.strftime('%d/%m/%Y')}.")
     st.caption("ℹ️ Il forward **non è una previsione**: è il prezzo a cui il mercato scambia oggi i periodi futuri "
-               "(prodotti GME poco liquidi: prezzi di controllo, indicativi). Nei periodi tranquilli incorpora di "
-               "norma un premio rispetto all'indice.")
+               "(prezzi di controllo GME, indicativi).")
 
 # =============================================================================
 # 2. OBIETTIVO DI PREZZO del cliente (g015)
@@ -258,33 +254,28 @@ else:
                 if len(h):
                     # quante sedute e da quando: un prodotto quotato da pochi giorni non deve
                     # sembrare "il 83% degli ultimi 12 mesi" (visto sul 4° trim. 2027, 6 sedute)
-                    n_sotto, n_tot = int((h["Forward"] <= obj).sum()), len(h)
                     i_min = int(h["Forward"].idxmin())
-                    da = h["Seduta"].min()
-                    storia_txt = (f"quotato dal {da.strftime('%d/%m/%Y')}: sotto l'obiettivo in <b>{n_sotto} sedute su {n_tot}</b> · "
-                                  f"minimo <b>{_it(h.loc[i_min, 'Forward'], 2)}</b> il {h.loc[i_min, 'Seduta'].strftime('%d/%m/%Y')}")
+                    storia_txt = (f"minimo <b>{_it(h.loc[i_min, 'Forward'], 2)}</b> il "
+                                  f"{h.loc[i_min, 'Seduta'].strftime('%d/%m/%Y')}")
                 else:
-                    storia_txt = "nessuna seduta negli ultimi 12 mesi"
-                verdetto = ("<b style='color:#0B4F78'>raggiungibile oggi</b>" if ok
-                            else f"<b style='color:#64748b'>sopra l'obiettivo del {_it(delta, 1)}%</b>")
+                    storia_txt = "nessuno storico"
+                verdetto = ("<b style='color:#0B4F78'>raggiungibile</b>" if ok
+                            else f"<b style='color:#64748b'>sopra del {_it(delta, 1)} %</b>")
                 st.markdown(branding.gm_tile(
-                    nome, _it(fw_, 2), PZ_UDM,
-                    f"forward del {pd.Timestamp(o['seduta']).strftime('%d/%m')} · obiettivo <b>{_it(obj, 2)}</b> {PZ_UDM} · "
-                    f"{verdetto}<br>{storia_txt}", accent=BLU_SCURO if ok else "#94a3b8"),
+                    nome, _it(fw_, 2), f"{PZ_UDM} · forward del {pd.Timestamp(o['seduta']).strftime('%d/%m')}",
+                    f"obiettivo <b>{_it(obj, 2)}</b> · {verdetto}<br>{storia_txt}", accent=BLU_SCURO if ok else "#94a3b8"),
                     unsafe_allow_html=True)
                 if len(h):
                     # Asse X = DATA DI QUOTAZIONE (quando il mercato ha prezzato quel trimestre),
                     # non il periodo di consegna: va detto, altrimenti "mar-ott" si legge come il periodo.
-                    st.markdown(f"<div class='gm-sub' style='margin:10px 0 2px'>Quanto valeva il forward del "
-                                f"<b>{nome}</b> nei mesi scorsi (per data di quotazione)</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='gm-sub' style='margin:10px 0 2px'>Andamento della quotazione · <b>{nome}</b></div>",
+                                unsafe_allow_html=True)
                     linea = alt.Chart(h).mark_line(color=BLU, strokeWidth=2).encode(
                         x=alt.X("Seduta:T", title="data di quotazione"),
                         y=alt.Y("Forward:Q", title=None, scale=alt.Scale(zero=False)),
-                        tooltip=[alt.Tooltip("Seduta:T", title="Quotato il", format="%d/%m/%Y"),
+                        tooltip=[alt.Tooltip("Seduta:T", title="Data", format="%d/%m/%Y"),
                                  alt.Tooltip("Forward:Q", title=f"Forward {nome} ({PZ_UDM})", format=",.2f")])
                     regola = alt.Chart(pd.DataFrame({"y": [obj]})).mark_rule(color=C_PREZZO, strokeDash=[6, 4]).encode(y="y:Q")
                     branding.altair_it((linea + regola).properties(height=150))
-        st.caption("ℹ️ Linea blu: come si è mossa negli ultimi 12 mesi la quotazione forward di quel trimestre "
-                   "(l'asse è la data di quotazione, non il periodo di consegna); linea rossa tratteggiata: l'obiettivo. "
-                   "Fissare all'obiettivo **garantisce l'obiettivo, non il minimo**: il confronto è aritmetico, nessuna previsione. "
-                   "Gli obiettivi sono impostati da Bros per conto del cliente (Admin → Obiettivi di prezzo).")
+        st.caption("ℹ️ Linea blu: la quotazione del trimestre negli ultimi 12 mesi; tratteggio rosso: l'obiettivo. "
+                   "Fissare all'obiettivo **garantisce l'obiettivo, non il minimo**. Obiettivi impostati da Bros (Admin).")
