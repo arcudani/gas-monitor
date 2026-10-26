@@ -262,7 +262,7 @@ else:
                 verdetto = ("<b style='color:#0B4F78'>raggiungibile</b>" if ok
                             else f"<b style='color:#64748b'>sopra del {_it(delta, 1)} %</b>")
                 st.markdown(branding.gm_tile(
-                    nome, _it(fw_, 2), f"{PZ_UDM} · forward del {pd.Timestamp(o['seduta']).strftime('%d/%m')}",
+                    nome, _it(fw_, 2), PZ_UDM,
                     f"obiettivo <b>{_it(obj, 2)}</b> · {verdetto}<br>{storia_txt}", accent=BLU_SCURO if ok else "#94a3b8"),
                     unsafe_allow_html=True)
                 if len(h):
