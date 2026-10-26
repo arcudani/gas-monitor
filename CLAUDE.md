@@ -223,3 +223,26 @@ non cancellare.
   Stessa protezione in `promemoria-annuali` v5, dove pero' l'insert su `promemoria_inviati` e'
   diventato UPSERT: ha la PK (anno, promemoria_id, tipo) e un retry avrebbe preso 409 trasformando un
   promemoria INVIATO in un errore.
+
+## Mercato a termine (g014, 26/10/2026): curva forward GME, informazione A PARTE dal segnale
+
+Dopo il backtest offline di Timestral (Mistral; cartella `C:\Code\Forecast_PoC`, resoconto in
+`RISULTATI.md`) il forecast di prezzo e' stato **scartato**: a 3/6/12 mesi nessuna taglia del modello
+batte il random walk su gas o PUN, le bande coprono solo il 40-57% nelle crisi e sul minimo di aprile
+2026 prevedeva un'ulteriore discesa. Decisione utente: niente "previsioni" nell'app; al loro posto la
+**curva forward del GME** come pannello informativo in Dashboard, **senza toccare scenario, prezzo,
+segnale o alert** (per non peggiorare lo strumento).
+- Tabella `gas_forward` (commodity, seduta, prodotto, tipo M|Q|CY|SS|WS, consegna_dal/al, prezzo):
+  prezzi di CONTROLLO del GME (MT-GAS per il gas, MTE *baseload* per l'EE; BoM e peak-load esclusi).
+  La scrive ogni notte il job VPS `dati-mercato` di App_Offerte (`app/data_updater/forward.py`,
+  ruolo `bros_jobs`; rilegge le ultime 5 sedute, upsert idempotente; un fetch fallito e' un
+  `avviso`, niente email). Storico dal 2020 caricato con `backfill-forward`.
+- Dashboard (`moduli/dashboard.py`, sezione 2b, sotto il box del segnale): numero grande = media
+  dei prossimi 12 mesi quotati, pillola = scostamento vs prezzo attuale (gas: prezzo del giorno;
+  EE: media del mese in corso, perche' il forward mensile e' una media mensile), mini-griglia
+  M+1/M+2/M+3, medie 3 e 6 mesi, anno solare prossimo; grafico a barre della curva mensile con la
+  linea tratteggiata del prezzo attuale. Curva mensile = prodotto M se quotato, altrimenti Q,
+  poi stagione, poi CY; nelle sedute di fine mese il mese successivo e' solo BoM e si salta
+  (si prendono comunque 12 punti). Caption fissa: "non e' una previsione".
+- Guida: paragrafo nel tab Dashboard + FAQ "Perche' il monitor non fa previsioni di prezzo?".
+- Non ancora nel PDF/Excel di export.

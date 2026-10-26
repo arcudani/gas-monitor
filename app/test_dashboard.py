@@ -20,6 +20,9 @@ def test_dashboard_tutti_i_periodi() -> None:
     assert "Scenario di approvvigionamento" in testo, "pannello scenario mancante"
     assert "Prezzo gas MGP-GAS" in testo, "pannello prezzo mancante"
     assert "Segnale di oggi" in testo, "pannello segnale mancante"
+    # g014: curva forward GME, pannello informativo separato dal segnale
+    assert "Mercato a termine" in testo, "pannello forward mancante"
+    assert "media dei prossimi 12 mesi" in testo, "media forward 12 mesi mancante"
     radio = at.radio[0]
     for opz in radio.options:
         radio.set_value(opz).run()

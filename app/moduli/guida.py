@@ -99,6 +99,17 @@ Tre colonne, dalla più importante alla più leggera:
   solo quello, non c'è segnale.
 Il colore è una scala di blu (più scuro = più forte). Non è un semaforo: un segnale forte è un'**informazione**.
 
+### Il pannello "Mercato a termine" (informativo)
+Sotto il segnale c'è la **curva forward del GME**: il prezzo a cui il mercato scambia **oggi** i mesi futuri, cioè
+quanto costerebbe **bloccare adesso** i prossimi mesi. Il numero grande è la media dei prossimi 12 mesi; la pillola
+dice di quanto sta sopra o sotto il prezzo attuale; sotto, i tre mesi successivi, le medie a 3 e 6 mesi e l'anno
+solare prossimo; il grafico a barre mostra la curva mese per mese con la linea tratteggiata del prezzo attuale.
+Fonte: prezzi di controllo dei mercati a termine GME (MT-GAS per il gas, MTE *baseload* per l'elettrico),
+aggiornati ogni notte; sono prodotti poco liquidi, quindi i valori sono **indicativi**.
+**Non è una previsione e non entra nel segnale**: scenario, prezzo e segnale restano calcolati come prima. È un
+riferimento in più per chi valuta un prezzo fisso: se il forward sta molto sopra l'indice (curva "in contango")
+bloccare costa un premio; se sta sotto, il mercato si aspetta prezzi in calo.
+
 ### Le quattro variabili
 Una tessera per ciascuna, con il valore fisico (es. 79,8 % di riempimento, 26,9 °C, 538 GWh/g, GPR 144),
 cosa misura e la **barra del punteggio** 0–100 (alto = favorevole).
@@ -304,6 +315,17 @@ Perché un segnale forte è un'**informazione**, non un allarme: il colore indic
 **Perché la finestra di aprile 2026 (prezzo a 39) non è stata segnalata?**
 Perché sul momento era indistinguibile da un "coltello che cade": il trend lungo saliva con forza (rally di marzo) e il
 breve crollava; inoltre 39 era al 63° percentile dei 6 mesi precedenti (l'inverno era stato più basso) — un minimo
-*del rally*, non di periodo. Che fosse il minimo dell'anno si è visto solo dopo: è il caso di riferimento per il
-forecast (fase successiva).
+*del rally*, non di periodo. Che fosse il minimo dell'anno si è visto solo dopo. Abbiamo verificato se un modello
+previsionale l'avrebbe colto: no (vedi la domanda seguente).
+
+**Perché il monitor non fa previsioni di prezzo?**
+Perché le abbiamo messe alla prova e non reggono. Nell'ottobre 2026 abbiamo testato un modello di previsione di
+ultima generazione su gas ed elettrico dal 2020, a 3, 6 e 12 mesi: non ha fatto meglio dell'ipotesi più banale
+("il prezzo resta quello di oggi"), le sue fasce di incertezza erano inaffidabili proprio nelle crisi, e sul
+minimo di aprile 2026 prevedeva un'ulteriore discesa mentre il prezzo risaliva. Mostrare una previsione sarebbe
+stato dare un numero falso con l'aria di uno vero. Il monitor quindi lavora su ciò che si **osserva**: i
+fondamentali (scenario), il prezzo rispetto ai suoi trend (segnale) e, dal 26/10/2026, la **curva forward del
+GME**, che non è una previsione ma il prezzo a cui si può bloccare oggi. Un dato utile emerso dal test: nei
+periodi tranquilli il forward incorpora un **premio** rispetto all'indice (in media circa 1 % a 3 mesi, 5 % a 6,
+10 % a 12 nel 2023–26): bloccare sempre e comunque costa, per questo il segnale ragiona a finestre.
 """)

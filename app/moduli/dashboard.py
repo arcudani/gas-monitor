@@ -75,9 +75,17 @@ def _carica(com: str) -> dict:
                      "ORDER BY serie", (com,))
     run = db.query("SELECT started_at, status, left(coalesce(error,''),300) FROM public.task_runs "
                    "WHERE task_id='gas-monitor' ORDER BY started_at DESC LIMIT 1")
+    # Curva forward GME (g014): ultima seduta disponibile. Informazione A PARTE
+    # dal segnale (decisione 26/10/2026): nessun modello previsionale ha battuto
+    # il random walk nel backtest, il forward invece e' un prezzo osservato.
+    fwd = db.query("SELECT seduta, prodotto, tipo, consegna_dal, consegna_al, prezzo "
+                   "FROM public.gas_forward WHERE commodity = %s AND seduta = "
+                   "(SELECT max(seduta) FROM public.gas_forward WHERE commodity = %s) "
+                   "ORDER BY consegna_dal, tipo", (com, com))
     return {"seg": df, "cfg": (cfg[0][0] if cfg else {}) or {},
             "var": {k: (None if v is None else float(v)) for k, v in var},
-            "fresh": fresh, "run": run[0] if run else None}
+            "fresh": fresh, "run": run[0] if run else None,
+            "fwd": [dict(zip(("seduta", "prodotto", "tipo", "dal", "al", "prezzo"), r)) for r in fwd]}
 
 
 try:
@@ -321,6 +329,97 @@ st.markdown(
     "</div></div>",
     unsafe_allow_html=True,
 )
+
+# =============================================================================
+# 2b. MERCATO A TERMINE (curva forward GME) — informativo, A PARTE dal segnale
+# =============================================================================
+# Decisione 26/10/2026: niente previsioni di prezzo (il backtest Timestral non ha
+# battuto il random walk); il forward e' invece il prezzo a cui OGGI si puo'
+# bloccare un mese futuro. Non entra in scenario, prezzo, segnale ne' alert.
+MESI_BREVI = ["gen", "feb", "mar", "apr", "mag", "giu", "lug", "ago", "set", "ott", "nov", "dic"]
+fwd = dati.get("fwd") or []
+if fwd:
+    seduta = pd.Timestamp(fwd[0]["seduta"])
+    # curva MENSILE dei 12 mesi successivi alla seduta: prodotto mensile se
+    # quotato, altrimenti il trimestre, la stagione (gas) o l'anno che lo contiene
+    PRIORITA = {"M": 0, "Q": 1, "SS": 2, "WS": 2, "CY": 3}
+    # Nelle sedute di fine mese il mese successivo e' quotato solo come BoM (escluso):
+    # si parte dal primo mese coperto e si prendono comunque 12 punti.
+    curva = []
+    for k in range(1, 15):
+        m0 = (seduta.to_period("M") + k).to_timestamp()
+        cand = sorted((r for r in fwd if pd.Timestamp(r["dal"]) <= m0 <= pd.Timestamp(r["al"])),
+                      key=lambda r: PRIORITA.get(r["tipo"], 9))
+        if cand:
+            curva.append({"Mese": m0, "Etichetta": f"{MESI_BREVI[m0.month - 1]} {m0.year % 100:02d}",
+                          "Prezzo": float(cand[0]["prezzo"]), "Prodotto": cand[0]["prodotto"]})
+        if len(curva) == 12:
+            break
+    # riferimento spot: per il gas il prezzo del giorno, per l'elettrico la media
+    # del mese in corso (il forward mensile e' una media mensile: stesso tipo di numero)
+    spot, spot_lbl = (pz, f"prezzo {PZ_LBL} del {ult['Data'].strftime('%d/%m')}") if vetrina != "mese" \
+        else (mese_med, f"media {PZ_LBL} di {mese_nome}")
+
+    def _media_curva(n: int):
+        v = [c["Prezzo"] for c in curva[:n]]
+        return sum(v) / n if len(v) == n else None
+
+    def _vs_spot(v) -> str:
+        if v is None or not spot:
+            return ""
+        d = 100 * (v / spot - 1)
+        return f"<span style='color:{'#64748b'}'>{'+' if d >= 0 else '−'}{_it(abs(d), 1)} %</span>"
+
+    f12 = _media_curva(12)
+    celle = []
+    for k, c in enumerate(curva[:3]):
+        celle.append((c["Etichetta"].replace(" ", " 20"), c["Prezzo"]))
+    celle += [("media 3 mesi", _media_curva(3)), ("media 6 mesi", _media_curva(6))]
+    cy = next((r for r in fwd if r["tipo"] == "CY" and pd.Timestamp(r["dal"]).year == seduta.year + 1), None)
+    if cy:
+        celle.append((f"anno {seduta.year + 1}", float(cy["prezzo"])))
+    if f12 is not None and spot:
+        d12 = 100 * (f12 / spot - 1)
+        verso = ("sopra" if d12 > 1 else "sotto" if d12 < -1 else "in linea con")
+        tag_fw = (f"vs {spot_lbl}: <b>{'+' if d12 >= 0 else '−'}{_it(abs(d12), 1)} %</b> · "
+                  f"il mercato prezza i prossimi 12 mesi <b>{verso}</b> il prezzo attuale")
+    else:
+        tag_fw = "curva incompleta"
+    st.markdown(
+        "<div class='gm-label' style='margin-top:18px'>Mercato a termine · informativo, non entra nel segnale</div>"
+        "<div class='gm-panel'>"
+        "<div class='gm-panel-top'>"
+        + (f"<div class='gm-value' style='color:{BLU}'>{_it(f12, 2)}<small>{PZ_UDM} · media dei prossimi 12 mesi</small></div>"
+           if f12 is not None else "<div class='gm-value' style='color:#94a3b8'>n.d.</div>")
+        + f"<div class='gm-tag'>{tag_fw}</div></div>"
+        f"<div class='gm-sub'>Quanto costa <b>bloccare oggi</b> i mesi futuri: prezzi di controllo GME "
+        f"({'MT-GAS' if COM == 'gas' else 'MTE baseload'}) della seduta del <b>{seduta.strftime('%d/%m/%Y')}</b>, "
+        f"in €/MWh. Confronto con {spot_lbl} (<b>{_it(spot, 2)}</b>).</div>"
+        f"<div class='gm-mini gm-mini-ink' style='grid-template-columns:repeat({len(celle)}, minmax(0,1fr))'>"
+        + "".join(f"<div>{lbl} {_vs_spot(v)}<b>{_it(v, 2) if v is not None else 'n.d.'}</b></div>" for lbl, v in celle)
+        + "</div></div>",
+        unsafe_allow_html=True,
+    )
+    if curva:
+        dfc = pd.DataFrame(curva)
+        base = alt.Chart(dfc).encode(
+            x=alt.X("Etichetta:N", sort=list(dfc["Etichetta"]), title=None, axis=alt.Axis(labelAngle=0)))
+        barre = base.mark_bar(color=BLU, size=26, cornerRadiusTopLeft=3, cornerRadiusTopRight=3).encode(
+            y=alt.Y("Prezzo:Q", title=f"€/MWh", scale=alt.Scale(zero=False, padding=12)),
+            tooltip=[alt.Tooltip("Etichetta:N", title="Mese"),
+                     alt.Tooltip("Prezzo:Q", title="Forward €/MWh", format=",.2f"),
+                     alt.Tooltip("Prodotto:N", title="Prodotto GME")])
+        linea_spot = alt.Chart(pd.DataFrame({"y": [spot]})).mark_rule(
+            color=C_PREZZO, strokeDash=[6, 4], strokeWidth=1.5).encode(y="y:Q")
+        st.markdown(branding.gm_legend([("solid", BLU, "forward per mese di consegna (prodotto mensile, "
+                                                      "altrimenti trimestre/stagione/anno)"),
+                                        ("dash", C_PREZZO, spot_lbl)]), unsafe_allow_html=True)
+        branding.altair_it((barre + linea_spot).properties(height=190))
+    if (ult["Data"] - seduta).days > 7:
+        st.caption(f"⚠️ Curva forward non aggiornata: ultima seduta disponibile {seduta.strftime('%d/%m/%Y')}.")
+    st.caption("ℹ️ Il forward **non è una previsione**: è il prezzo a cui il mercato scambia oggi i periodi futuri "
+               "(prodotti GME poco liquidi: prezzi di controllo, indicativi). Nei periodi tranquilli incorpora di "
+               "norma un premio rispetto all'indice; il segnale di fixing resta calcolato solo su scenario e prezzo.")
 
 # =============================================================================
 # 3. Stat tile delle variabili
