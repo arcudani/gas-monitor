@@ -255,9 +255,12 @@ else:
                 ok = fw_ <= obj
                 h = storia_ob[storia_ob["Prodotto"] == o["prodotto"]]
                 if len(h):
-                    quota = 100 * float((h["Forward"] <= obj).mean())
+                    # quante sedute e da quando: un prodotto quotato da pochi giorni non deve
+                    # sembrare "il 83% degli ultimi 12 mesi" (visto sul 4° trim. 2027, 6 sedute)
+                    n_sotto, n_tot = int((h["Forward"] <= obj).sum()), len(h)
                     i_min = int(h["Forward"].idxmin())
-                    storia_txt = (f"ultimi 12 mesi: sotto l'obiettivo nel <b>{quota:.0f}%</b> delle sedute · "
+                    da = h["Seduta"].min()
+                    storia_txt = (f"quotato dal {da.strftime('%d/%m/%Y')}: sotto l'obiettivo in <b>{n_sotto} sedute su {n_tot}</b> · "
                                   f"minimo <b>{_it(h.loc[i_min, 'Forward'], 2)}</b> il {h.loc[i_min, 'Seduta'].strftime('%d/%m/%Y')}")
                 else:
                     storia_txt = "nessuna seduta negli ultimi 12 mesi"
