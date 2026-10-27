@@ -238,65 +238,66 @@ else:
     else:
         st.markdown(f"<div class='gm-label'>Obiettivi · {nome_az or ''} · {INFO['nome'].lower()}</div>",
                     unsafe_allow_html=True)
-        cols = st.columns(len(obiettivi))
-        for col, o in zip(cols, obiettivi):
-            with col:
-                nome = _nome_periodo(o["prodotto"])
-                obj = float(o["obiettivo"])
-                if o["forward"] is None:
+        # UNA RIGA PER TRIMESTRE (utente 27/10): tessera a sinistra, grafico a tutta
+        # larghezza a destra; i 4 grafici condividono scala temporale e tick (ultimi 12 mesi)
+        oggi_ = pd.Timestamp.today().normalize()
+        inizio_ = oggi_ - pd.Timedelta(days=365)
+        tick_ = [d.isoformat() for d in pd.date_range(inizio_, oggi_, freq="MS")]
+        for o in obiettivi:
+            nome = _nome_periodo(o["prodotto"])
+            obj = float(o["obiettivo"])
+            col_t, col_g = st.columns([1, 3], vertical_alignment="center")
+            if o["forward"] is None:
+                with col_t:
                     st.markdown(branding.gm_tile(nome, "n.d.", "", f"obiettivo <b>{_it(obj, 2)}</b> {PZ_UDM} · forward non quotato"),
                                 unsafe_allow_html=True)
-                    continue
-                fw_ = float(o["forward"])
-                delta = 100 * (fw_ / obj - 1)
-                ok = fw_ <= obj
-                h = storia_ob[storia_ob["Prodotto"] == o["prodotto"]]
-                if len(h):
-                    # quante sedute e da quando: un prodotto quotato da pochi giorni non deve
-                    # sembrare "il 83% degli ultimi 12 mesi" (visto sul 4° trim. 2027, 6 sedute)
-                    i_min = int(h["Forward"].idxmin())
-                    storia_txt = (f"minimo <b>{_it(h.loc[i_min, 'Forward'], 2)}</b> il "
-                                  f"{h.loc[i_min, 'Seduta'].strftime('%d/%m/%Y')}")
-                else:
-                    storia_txt = "nessuno storico"
-                verdetto = ("<b style='color:#0B4F78'>raggiungibile</b>" if ok
-                            else f"<b style='color:#64748b'>sopra del {_it(delta, 1)} %</b>")
+                continue
+            fw_ = float(o["forward"])
+            delta = 100 * (fw_ / obj - 1)
+            ok = fw_ <= obj
+            h = storia_ob[storia_ob["Prodotto"] == o["prodotto"]]
+            if len(h):
+                i_min = int(h["Forward"].idxmin())
+                storia_txt = (f"minimo <b>{_it(h.loc[i_min, 'Forward'], 2)}</b> il "
+                              f"{h.loc[i_min, 'Seduta'].strftime('%d/%m/%Y')}")
+            else:
+                storia_txt = "nessuno storico"
+            verdetto = ("<b style='color:#0B4F78'>raggiungibile</b>" if ok
+                        else f"<b style='color:#64748b'>sopra del {_it(delta, 1)} %</b>")
+            with col_t:
                 st.markdown(branding.gm_tile(
                     nome, _it(fw_, 2), PZ_UDM,
                     f"obiettivo <b>{_it(obj, 2)}</b> · {verdetto}<br>{storia_txt}", accent=BLU_SCURO if ok else "#94a3b8"),
                     unsafe_allow_html=True)
-                if len(h):
-                    # Asse X = DATA DI QUOTAZIONE (quando il mercato ha prezzato quel trimestre),
-                    # non il periodo di consegna: va detto, altrimenti "mar-ott" si legge come il periodo.
-                    # "dal gg/mm/aaaa" = prima quotazione effettiva (la coda provvisoria GME e' esclusa):
-                    # senza, un prodotto quotato da 2 giorni sembra un grafico rotto
-                    st.markdown(f"<div class='gm-sub' style='margin:10px 0 2px'>Andamento della quotazione · <b>{nome}</b> · "
-                                f"dal {h['Seduta'].min().strftime('%d/%m/%Y')}</div>", unsafe_allow_html=True)
-                    # STESSA scala temporale per tutti i grafici (ultimi 12 mesi, stessi tick):
-                    # un trimestre quotato da 10 giorni non deve avere un asse tutto suo (utente 27/10)
-                    oggi_ = pd.Timestamp.today().normalize()
-                    inizio_ = oggi_ - pd.Timedelta(days=365)
-                    # tick espliciti: il primo del mese ogni 3 mesi, solo nome del mese (uguali in tutti i grafici)
-                    tick_ = [d.isoformat() for d in pd.date_range(inizio_, oggi_, freq="MS")][::3]
-                    linea = alt.Chart(h).mark_line(color=BLU, strokeWidth=2).encode(
-                        x=alt.X("Seduta:T", title="data di quotazione",
-                                scale=alt.Scale(domain=[inizio_.isoformat(), oggi_.isoformat()], nice=False),
-                                axis=alt.Axis(values=tick_, labelOverlap=True,
-                                              labelExpr=f"{branding._MESI_EXPR}[month(datum.value)]")),
-                        y=alt.Y("Forward:Q", title=None, scale=alt.Scale(zero=False)),
-                        tooltip=[alt.Tooltip("Seduta:T", title="Data", format="%d/%m/%Y"),
-                                 alt.Tooltip("Forward:Q", title=f"Forward {nome} ({PZ_UDM})", format=",.2f")])
-                    regola = alt.Chart(pd.DataFrame({"y": [obj]})).mark_rule(
-                        color=C_PREZZO, strokeDash=[6, 4], strokeWidth=2).encode(y="y:Q")
-                    # solo il VALORE dell'obiettivo (la parola la dice la didascalia), sempre SOTTO
-                    # il tratteggio (utente 27/10), dal lato dove la quotazione e' piu' lontana
-                    q_ini, q_fin = float(h["Forward"].iloc[0]), float(h["Forward"].iloc[-1])
-                    a_destra = abs(q_fin - obj) >= abs(q_ini - obj)
-                    etich = alt.Chart(pd.DataFrame({
-                        "x": [h["Seduta"].max() if a_destra else h["Seduta"].min()], "y": [obj],
-                        "t": [_it(obj, 2)]})).mark_text(
-                        align="right" if a_destra else "left", baseline="top", dx=-2 if a_destra else 2, dy=3,
-                        color=C_PREZZO, fontSize=12, fontWeight="bold").encode(x="x:T", y="y:Q", text="t:N")
-                    branding.altair_it((linea + regola + etich).properties(height=150))
+            if not len(h):
+                continue
+            with col_g:
+                # Asse X = DATA DI QUOTAZIONE (quando il mercato ha prezzato quel trimestre),
+                # non il periodo di consegna. "dal gg/mm/aaaa" = prima quotazione effettiva
+                # (la coda provvisoria GME e' esclusa): un prodotto quotato da pochi giorni
+                # appare come un tratto corto a destra, ed e' giusto cosi'
+                st.markdown(f"<div class='gm-sub' style='margin:0 0 2px'>Andamento della quotazione · <b>{nome}</b> · "
+                            f"dal {h['Seduta'].min().strftime('%d/%m/%Y')}</div>", unsafe_allow_html=True)
+                linea = alt.Chart(h).mark_line(color=BLU, strokeWidth=2.5).encode(
+                    x=alt.X("Seduta:T", title="data di quotazione",
+                            scale=alt.Scale(domain=[inizio_.isoformat(), oggi_.isoformat()], nice=False),
+                            axis=alt.Axis(values=tick_, labelOverlap=True, labelFontSize=13,
+                                          labelExpr=f"{branding._MESI_EXPR}[month(datum.value)]")),
+                    y=alt.Y("Forward:Q", title=None, scale=alt.Scale(zero=False),
+                            axis=alt.Axis(labelFontSize=13)),
+                    tooltip=[alt.Tooltip("Seduta:T", title="Data", format="%d/%m/%Y"),
+                             alt.Tooltip("Forward:Q", title=f"Forward {nome} ({PZ_UDM})", format=",.2f")])
+                regola = alt.Chart(pd.DataFrame({"y": [obj]})).mark_rule(
+                    color=C_PREZZO, strokeDash=[6, 4], strokeWidth=2).encode(y="y:Q")
+                # solo il VALORE dell'obiettivo, sempre SOTTO il tratteggio (utente 27/10),
+                # dal lato dove la quotazione e' piu' lontana
+                q_ini, q_fin = float(h["Forward"].iloc[0]), float(h["Forward"].iloc[-1])
+                a_destra = abs(q_fin - obj) >= abs(q_ini - obj)
+                etich = alt.Chart(pd.DataFrame({
+                    "x": [oggi_ if a_destra else inizio_], "y": [obj],
+                    "t": [_it(obj, 2)]})).mark_text(
+                    align="right" if a_destra else "left", baseline="top", dx=-4 if a_destra else 4, dy=4,
+                    color=C_PREZZO, fontSize=15, fontWeight="bold").encode(x="x:T", y="y:Q", text="t:N")
+                branding.altair_it((linea + regola + etich).properties(height=220))
         st.caption("ℹ️ Linea blu: la quotazione del trimestre negli ultimi 12 mesi; tratteggio rosso: l'obiettivo. "
                    "Fissare all'obiettivo **garantisce l'obiettivo, non il minimo**. Obiettivi impostati da Bros (Admin).")
