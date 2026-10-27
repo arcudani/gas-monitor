@@ -220,6 +220,22 @@ def _obiettivi_azienda(com: str, az_id: int) -> tuple[list[dict], pd.DataFrame]:
     return ob, storia
 
 
+def _asse_tempo(storia: pd.DataFrame, oggi: pd.Timestamp | None = None) -> tuple[pd.Timestamp, pd.Timestamp, list[str]]:
+    """Asse X comune ai grafici degli obiettivi: (inizio, fine, tick ISO).
+
+    Finestra MOBILE: finisce oggi e parte dalla prima quotazione vera tra i
+    trimestri mostrati, ma mai piu' di 12 mesi indietro. Cosi' ogni mese che
+    passa aggiunge il suo tick a destra e, superato l'anno, i mesi piu' vecchi
+    escono da sinistra — senza toccare nulla (utente 27/10/2026).
+    """
+    oggi = (oggi or pd.Timestamp.today()).normalize()
+    inizio = oggi - pd.Timedelta(days=365)
+    if not storia.empty:
+        inizio = max(inizio, storia["Seduta"].min().normalize())
+    tick = [inizio] + [d for d in pd.date_range(inizio, oggi, freq="MS") if d != inizio]
+    return inizio, oggi, [d.isoformat() for d in tick]
+
+
 _utente = st.session_state.get("utente_autenticato", "")
 ctx_ob = _contesto_obiettivi(COM, _utente) if _utente else {"azienda_id": None, "ruolo": None, "aziende": []}
 az_sel = ctx_ob["azienda_id"]
@@ -240,13 +256,7 @@ else:
                     unsafe_allow_html=True)
         # UNA RIGA PER TRIMESTRE (utente 27/10): tessera a sinistra, grafico a tutta
         # larghezza a destra; i 4 grafici condividono scala temporale e tick (ultimi 12 mesi)
-        # L'asse parte dalla PRIMA quotazione vera tra i trimestri mostrati (niente mesi vuoti
-        # a sinistra, utente 27/10), ma resta lo stesso per tutti i grafici
-        oggi_ = pd.Timestamp.today().normalize()
-        inizio_ = oggi_ - pd.Timedelta(days=365)
-        if not storia_ob.empty:
-            inizio_ = max(inizio_, storia_ob["Seduta"].min().normalize())
-        tick_ = [d.isoformat() for d in [inizio_] + list(pd.date_range(inizio_, oggi_, freq="MS"))]
+        inizio_, oggi_, tick_ = _asse_tempo(storia_ob)
         for o in obiettivi:
             nome = _nome_periodo(o["prodotto"])
             obj = float(o["obiettivo"])
