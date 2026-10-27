@@ -235,10 +235,12 @@ def pdf_snapshot(sit: dict, df_seg: pd.DataFrame, cfg: dict,
           Paragraph(" · ".join(f"{n} {p[k]:.0f}" if p.get(k) is not None else f"{n} n.d."
                                for k, n in ctx["variabili"]), st_small)]
     ver = "prezzo in flessione" if sit.get("pz_ok") else "prezzo non in flessione"
+    # il verdetto sta nella riga piccola: nel paragrafo grande (interlinea 34)
+    # andava a capo lasciando un buco vuoto sotto il prezzo
     dx = [Paragraph(ctx["prezzo_nome"], st_h),
-          Paragraph(f"{_it(sit['prezzo'], 2)} <font size=10 color='#475569'>{udm} · {ver}</font>", st_big_k),
-          Paragraph(f"vs trend breve {_pct(sit['sc_b'])} · vs trend medio {_pct(sit['sc_m'])} · "
-                    f"trend lungo {_dir(sit['pend_l'])}", st_small),
+          Paragraph(f"{_it(sit['prezzo'], 2)} <font size=10 color='#475569'>{udm}</font>", st_big_k),
+          Paragraph(f"<b>{ver}</b> · vs trend breve {_pct(sit['sc_b'])} · "
+                    f"vs trend medio {_pct(sit['sc_m'])} · trend lungo {_dir(sit['pend_l'])}", st_small),
           Paragraph(f"{'▲' if sit['d_prezzo'] > 0 else '▼' if sit['d_prezzo'] < 0 else '='} "
                     f"{_it(abs(sit['d_prezzo']), 2)} {udm} vs giorno precedente", st_small)]
     tp = Table([[sx, dx]], colWidths=[87 * mm, 87 * mm])
@@ -257,11 +259,26 @@ def pdf_snapshot(sit: dict, df_seg: pd.DataFrame, cfg: dict,
     LIV = {"attesa": 0, "chiusa": 0, "monitorare": 1, "opportunita": 2, "prime": 2,
            "minimo": 3, "iniziale": 3, "fixing": 4, "trend": 5}
     liv = LIV.get(sit["codice"], 0)
-    tacche = "■" * liv + "□" * (5 - liv)
+    # tacche disegnate come celle colorate: Helvetica non ha il glifo "□" e
+    # rendeva i quadrati vuoti identici a quelli pieni (sempre 5/5)
+    tacche = Table([[""] * 5], colWidths=[4 * mm] * 5, rowHeights=[3 * mm])
+    tacche.setStyle(TableStyle(
+        [("BACKGROUND", (i, 0), (i, 0), colors.HexColor(BLU if i < liv else "#dfe4ec"))
+         for i in range(5)]
+        + [("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+           ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+           ("LINEAFTER", (0, 0), (-2, 0), 1, colors.white)]))
+    riga_int = Table([[tacche, Paragraph(
+        f"intensità {liv}/5 · " + (f"{n} giorni consecutivi favorevoli" if n else
+                                  "nessun giorno favorevole in corso"), st_small)]],
+        colWidths=[22 * mm, 140 * mm])
+    riga_int.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("ALIGN", (0, 0), (0, 0), "LEFT"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 1), ("BOTTOMPADDING", (0, 0), (-1, -1), 1)]))
     seg = Table([[[Paragraph("SEGNALE DEL GIORNO", st_h),
-                   Paragraph(f"{nome} &nbsp;<font size=10 color='#64748b'>{tacche} intensità {liv}/5</font>", st_seg),
-                   Paragraph(f"{n} giorni consecutivi favorevoli" if n else
-                             "nessun giorno favorevole in corso", st_small),
+                   Paragraph(nome, st_seg),
+                   riga_int,
                    Spacer(1, 3),
                    Paragraph(sit["testo"], st_p)]]], colWidths=[174 * mm])
     seg.setStyle(TableStyle([
