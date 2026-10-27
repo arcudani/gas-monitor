@@ -164,7 +164,7 @@ else:
     if (data_pz - seduta).days > 7:
         st.caption(f"⚠️ Curva forward non aggiornata: ultima seduta disponibile {seduta.strftime('%d/%m/%Y')}.")
     st.caption("ℹ️ Il forward **non è una previsione**: è il prezzo a cui il mercato scambia oggi i periodi futuri "
-               "(prezzi di controllo GME, indicativi).")
+               "(prezzi di controllo GME).")
 
 # =============================================================================
 # 2. OBIETTIVO DI PREZZO del cliente (g015)

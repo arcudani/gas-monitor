@@ -109,8 +109,8 @@ unirle confonderebbe la lettura del segnale.
 quanto costerebbe **bloccare adesso**. Il numero grande è la media dei prossimi 12 mesi; la pillola dice di quanto sta
 sopra o sotto il prezzo attuale; sotto, i tre mesi successivi, le medie a 3 e 6 mesi e l'anno solare prossimo; il
 grafico a barre mostra la curva mese per mese con la linea tratteggiata del prezzo attuale. Fonte: prezzi di controllo
-dei mercati a termine GME (MT-GAS per il gas, MTE *baseload* per l'elettrico), aggiornati ogni notte; prodotti poco
-liquidi, quindi valori **indicativi**. **Non è una previsione e non entra nel segnale.** Se il forward sta sopra
+dei mercati a termine GME (MT-GAS per il gas, MTE *baseload* per l'elettrico), aggiornati ogni notte.
+**Non è una previsione e non entra nel segnale.** Se il forward sta sopra
 l'indice (curva "in contango") bloccare costa un premio; se sta sotto, il mercato si aspetta prezzi in calo.
 
 **Obiettivo di prezzo** — un prezzo in €/MWh di materia prima che Bros concorda con il cliente per ciascun trimestre
