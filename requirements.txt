@@ -1,2 +1,4 @@
 # Streamlit Community Cloud installa da qui (radice repo): delega ad app/.
 -r app/requirements.txt
+
+# 27/10/2026: riga di servizio per forzare il riavvio su Streamlit Cloud (nuova pagina Forward e obiettivi)
