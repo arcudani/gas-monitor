@@ -268,8 +268,10 @@ else:
                 if len(h):
                     # Asse X = DATA DI QUOTAZIONE (quando il mercato ha prezzato quel trimestre),
                     # non il periodo di consegna: va detto, altrimenti "mar-ott" si legge come il periodo.
-                    st.markdown(f"<div class='gm-sub' style='margin:10px 0 2px'>Andamento della quotazione · <b>{nome}</b></div>",
-                                unsafe_allow_html=True)
+                    # "dal gg/mm/aaaa" = prima quotazione effettiva (la coda provvisoria GME e' esclusa):
+                    # senza, un prodotto quotato da 2 giorni sembra un grafico rotto
+                    st.markdown(f"<div class='gm-sub' style='margin:10px 0 2px'>Andamento della quotazione · <b>{nome}</b> · "
+                                f"dal {h['Seduta'].min().strftime('%d/%m/%Y')}</div>", unsafe_allow_html=True)
                     linea = alt.Chart(h).mark_line(color=BLU, strokeWidth=2).encode(
                         x=alt.X("Seduta:T", title="data di quotazione"),
                         y=alt.Y("Forward:Q", title=None, scale=alt.Scale(zero=False)),
