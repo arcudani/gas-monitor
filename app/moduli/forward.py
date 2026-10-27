@@ -240,9 +240,13 @@ else:
                     unsafe_allow_html=True)
         # UNA RIGA PER TRIMESTRE (utente 27/10): tessera a sinistra, grafico a tutta
         # larghezza a destra; i 4 grafici condividono scala temporale e tick (ultimi 12 mesi)
+        # L'asse parte dalla PRIMA quotazione vera tra i trimestri mostrati (niente mesi vuoti
+        # a sinistra, utente 27/10), ma resta lo stesso per tutti i grafici
         oggi_ = pd.Timestamp.today().normalize()
         inizio_ = oggi_ - pd.Timedelta(days=365)
-        tick_ = [d.isoformat() for d in pd.date_range(inizio_, oggi_, freq="MS")]
+        if not storia_ob.empty:
+            inizio_ = max(inizio_, storia_ob["Seduta"].min().normalize())
+        tick_ = [d.isoformat() for d in [inizio_] + list(pd.date_range(inizio_, oggi_, freq="MS"))]
         for o in obiettivi:
             nome = _nome_periodo(o["prodotto"])
             obj = float(o["obiettivo"])
