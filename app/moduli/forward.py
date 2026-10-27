@@ -272,8 +272,17 @@ else:
                     # senza, un prodotto quotato da 2 giorni sembra un grafico rotto
                     st.markdown(f"<div class='gm-sub' style='margin:10px 0 2px'>Andamento della quotazione · <b>{nome}</b> · "
                                 f"dal {h['Seduta'].min().strftime('%d/%m/%Y')}</div>", unsafe_allow_html=True)
+                    # STESSA scala temporale per tutti i grafici (ultimi 12 mesi, stessi tick):
+                    # un trimestre quotato da 10 giorni non deve avere un asse tutto suo (utente 27/10)
+                    oggi_ = pd.Timestamp.today().normalize()
+                    inizio_ = oggi_ - pd.Timedelta(days=365)
+                    # tick espliciti: il primo del mese ogni 3 mesi, solo nome del mese (uguali in tutti i grafici)
+                    tick_ = [d.isoformat() for d in pd.date_range(inizio_, oggi_, freq="MS")][::3]
                     linea = alt.Chart(h).mark_line(color=BLU, strokeWidth=2).encode(
-                        x=alt.X("Seduta:T", title="data di quotazione"),
+                        x=alt.X("Seduta:T", title="data di quotazione",
+                                scale=alt.Scale(domain=[inizio_.isoformat(), oggi_.isoformat()], nice=False),
+                                axis=alt.Axis(values=tick_, labelOverlap=True,
+                                              labelExpr=f"{branding._MESI_EXPR}[month(datum.value)]")),
                         y=alt.Y("Forward:Q", title=None, scale=alt.Scale(zero=False)),
                         tooltip=[alt.Tooltip("Seduta:T", title="Data", format="%d/%m/%Y"),
                                  alt.Tooltip("Forward:Q", title=f"Forward {nome} ({PZ_UDM})", format=",.2f")])
