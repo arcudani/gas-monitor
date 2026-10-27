@@ -8,3 +8,5 @@ bcrypt>=4.1                     # hash password
 altair>=5.3                     # grafici dashboard
 openpyxl>=3.1                   # export Excel (RF-05)
 reportlab>=4.0                  # export PDF (RF-05)
+
+# deploy 27/10/2026 15:43 — pagina Forward e obiettivi (riga che forza il riavvio su Streamlit Cloud)

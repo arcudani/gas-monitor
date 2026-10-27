@@ -18,7 +18,8 @@ AUTH_COOKIE_KEY). **`git push` su `main` rideploya l'app** — mai push senza ok
 ⚠️ **In produzione si va SOLO con `python pubblica.py "<nota>"`** (dalla radice, dopo l'ok): Streamlit
 Cloud dopo un push ricarica a caldo solo lo script principale, i moduli importati (registro_moduli,
 branding, pagine) restano vecchi finché l'app non si riavvia — gli utenti NON vedono l'aggiornamento
-(successo il 27/10/2026). Lo script aggiorna il timbro `# deploy …` in `requirements.txt`, che forza
+(successo il 27/10/2026). Lo script aggiorna il timbro `# deploy …` in **`app/requirements.txt`** (quello che Cloud usa davvero,
+verificato nei log; il file in radice delega soltanto), che forza
 reinstallazione e riavvio, poi committa e pusha. Un `git push` nudo va evitato.
 L'URL è cablato come fallback di `GAS_MONITOR_APP_URL` nella config ERP e nella Edge Function alert.
 
