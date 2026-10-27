@@ -15,6 +15,11 @@ Community Cloud consente una sola app da repo privato, già usata da bros-erp �
 committare segreti o dati cliente); app live su
 `https://gas-monitor-gtspes3q3h5ry5wp3dj9rn.streamlit.app` (secrets su SCC: SUPABASE_DB_URL,
 AUTH_COOKIE_KEY). **`git push` su `main` rideploya l'app** — mai push senza ok esplicito.
+⚠️ **In produzione si va SOLO con `python pubblica.py "<nota>"`** (dalla radice, dopo l'ok): Streamlit
+Cloud dopo un push ricarica a caldo solo lo script principale, i moduli importati (registro_moduli,
+branding, pagine) restano vecchi finché l'app non si riavvia — gli utenti NON vedono l'aggiornamento
+(successo il 27/10/2026). Lo script aggiorna il timbro `# deploy …` in `requirements.txt`, che forza
+reinstallazione e riavvio, poi committa e pusha. Un `git push` nudo va evitato.
 L'URL è cablato come fallback di `GAS_MONITOR_APP_URL` nella config ERP e nella Edge Function alert.
 
 ## Comandi (dalla cartella `app/`, con il python della venv)
