@@ -279,17 +279,14 @@ else:
                                  alt.Tooltip("Forward:Q", title=f"Forward {nome} ({PZ_UDM})", format=",.2f")])
                     regola = alt.Chart(pd.DataFrame({"y": [obj]})).mark_rule(
                         color=C_PREZZO, strokeDash=[6, 4], strokeWidth=2).encode(y="y:Q")
-                    # etichetta col VALORE dell'obiettivo sulla linea, dal lato dove la quotazione
-                    # e' piu' lontana (cosi' non si sovrappone alla linea blu)
+                    # solo il VALORE dell'obiettivo (la parola la dice la didascalia), sempre SOTTO
+                    # il tratteggio (utente 27/10), dal lato dove la quotazione e' piu' lontana
                     q_ini, q_fin = float(h["Forward"].iloc[0]), float(h["Forward"].iloc[-1])
                     a_destra = abs(q_fin - obj) >= abs(q_ini - obj)
-                    # ...e sotto il tratteggio se da quel lato la quotazione sta sopra l'obiettivo
-                    sotto = (q_fin if a_destra else q_ini) > obj
                     etich = alt.Chart(pd.DataFrame({
                         "x": [h["Seduta"].max() if a_destra else h["Seduta"].min()], "y": [obj],
-                        "t": [f"obiettivo {_it(obj, 2)}"]})).mark_text(
-                        align="right" if a_destra else "left", baseline="top" if sotto else "bottom",
-                        dx=-2 if a_destra else 2, dy=3 if sotto else -3,
+                        "t": [_it(obj, 2)]})).mark_text(
+                        align="right" if a_destra else "left", baseline="top", dx=-2 if a_destra else 2, dy=3,
                         color=C_PREZZO, fontSize=12, fontWeight="bold").encode(x="x:T", y="y:Q", text="t:N")
                     branding.altair_it((linea + regola + etich).properties(height=150))
         st.caption("ℹ️ Linea blu: la quotazione del trimestre negli ultimi 12 mesi; tratteggio rosso: l'obiettivo. "
