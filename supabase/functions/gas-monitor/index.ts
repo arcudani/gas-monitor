@@ -403,7 +403,10 @@ Deno.serve(async (req: Request) => {
       ["meteo", async () => upsertSerie(await fetchMeteo(dal, ieri, false))],
       ["stoccaggi", async () => upsertSerie(await fetchGie("agsi", dal, ieri))],
       ["lng", async () => upsertSerie(await fetchGie("alsi", dal, ieri))],
-      ["geopolitica", () => delegaGpr(dal, ieri)],
+      // GPR: finestra larga (190 gg, come il ricalcolo del segnale) perche' gli
+      // autori RIVEDONO i valori giornalieri anche a distanza di mesi (10/11/2026:
+      // 151 giorni diversi dal file, fino a 30 punti di punteggio sul singolo giorno).
+      ["geopolitica", () => delegaGpr(isoAddDays(oggiRoma, -190), ieri)],
       ["produzione_ee", () => delegaEntsoe(dal, ieri)],
     ];
     for (const [nome, fn] of sorgenti) {
@@ -445,12 +448,14 @@ Deno.serve(async (req: Request) => {
     // un dato recente; oltre la tolleranza il run e' errore anche se le
     // chiamate sono andate bene, e parte un'email interna di alert.
     // Tolleranze in giorni (le fonti pubblicano con 1-2 gg di ritardo fisiologico).
-    // GPR a 7: il file .xls e' aggiornato A MANO dagli autori e puo' saltare
+    // GPR a 10: il file .xls e' aggiornato A MANO dagli autori, di norma una volta
+    // a settimana (lunedi' sera, dati fino al lunedi'): a 7 l'alert scattava al primo
+    // giorno di ritardo (10/11/2026). Puo' saltare
     // anche 4-6 giorni (fermo dal 17 al 21/08/2026); il motore fa fill-forward
     // e la variabile pesa il 20%, quindi qualche giorno di ritardo non e' critico.
     const TOLLERANZA: Record<string, number> = {
       "prezzo MGP_GAS": 2, "segnale": 2, "meteo t_media_paniere": 3,
-      "stoccaggi riempimento_pct": 3, "lng lng_sendout": 3, "geopolitica gpr": 7,
+      "stoccaggi riempimento_pct": 3, "lng lng_sendout": 3, "geopolitica gpr": 10,
     };
     const stantii: string[] = [];
     try {
