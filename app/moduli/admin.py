@@ -207,7 +207,7 @@ with tab_pipe:
 
     st.subheader(f"Freschezza delle serie · {INFO['nome'].lower()}")
     st.caption("Ogni mattina la pipeline verifica che ogni serie abbia un dato recente: oltre la tolleranza "
-               "(2 gg prezzo/segnale, 3 gg le altre fonti che pubblicano in ritardo, 7 gg il GPR che è "
+               "(2 gg prezzo/segnale, 3 gg le altre fonti che pubblicano in ritardo, 10 gg il GPR che è "
                "aggiornato a mano dagli autori) il run va in errore e parte UNA email di alert interna "
                "al giorno. Una serie mai caricata (es. in attesa di una chiave API) non compare finché "
                "non arriva il primo dato.")
