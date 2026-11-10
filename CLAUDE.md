@@ -70,6 +70,11 @@ confronto versione prima, altre sessioni editano lo stesso progetto):
   `task_attesi` → visibile nel Monitor ERP. `?force=1` bypassa gate; `?backfill=…`, `?ricalcola=1`.
 - `gas-monitor-gpr` — SOLO il parsing dell'.xls GPR (~3MB, SheetJS): in un worker separato perché
   nello stesso isolate sforava la memoria; una sub-invocazione dello stesso slug NON isola.
+  ⚠️ La fonte GPR è pubblicata **a mano, di norma una volta a settimana**, e gli autori
+  **rivedono i valori anche a distanza di mesi**: per questo la tolleranza di freschezza è **10 gg**
+  (mappa `TOLLERANZA` nella funzione **e** `gas_variabili.tolleranza_gg`, migrazione g016 — tenerle
+  allineate) e il run giornaliero **ricarica gli ultimi 190 gg** di GPR (stessa finestra del
+  ricalcolo del segnale). Un GPR fermo da 5-9 giorni non è un guasto.
 - `gas-monitor-alert` — valuta `gas_alert` per utente, una email Brevo per utente con la
   "Situazione odierna" + soglie raggiunte; `?preview=1` valuta senza inviare.
 
